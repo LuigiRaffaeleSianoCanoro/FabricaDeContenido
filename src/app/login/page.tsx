@@ -3,69 +3,129 @@
 import { SignIn } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useRef } from "react";
-import { Sparkles, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
-// Animated gradient background
-function GradientBackground() {
+// Plasma Shader Background
+function PlasmaBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const gl = canvas.getContext("webgl");
+    if (!gl) return;
 
-    let animationId: number;
-    let time = 0;
+    const vertexShaderSource = `
+      attribute vec2 a_position;
+      void main() {
+        gl_Position = vec4(a_position, 0.0, 1.0);
+      }
+    `;
 
-    function resize() {
-      if (!canvas) return;
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+    const fragmentShaderSource = `
+      precision highp float;
+      uniform vec2 u_resolution;
+      uniform float u_time;
+      
+      vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+      vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+      vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
+      
+      float snoise(vec2 v) {
+        const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+        vec2 i  = floor(v + dot(v, C.yy));
+        vec2 x0 = v - i + dot(i, C.xx);
+        vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+        vec4 x12 = x0.xyxy + C.xxzz;
+        x12.xy -= i1;
+        i = mod289(i);
+        vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
+        vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+        m = m*m; m = m*m;
+        vec3 x = 2.0 * fract(p * C.www) - 1.0;
+        vec3 h = abs(x) - 0.5;
+        vec3 ox = floor(x + 0.5);
+        vec3 a0 = x - ox;
+        m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
+        vec3 g;
+        g.x = a0.x * x0.x + h.x * x0.y;
+        g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+        return 130.0 * dot(m, g);
+      }
+      
+      void main() {
+        vec2 st = gl_FragCoord.xy / u_resolution.xy;
+        vec2 pos = st * 3.0;
+        
+        float n1 = snoise(pos + u_time * 0.12);
+        float n2 = snoise(pos * 2.0 - u_time * 0.08);
+        float noise = (n1 + n2 * 0.5) / 1.5;
+        noise = noise * 0.5 + 0.5;
+        
+        float wave = sin(st.x * 6.0 + st.y * 3.0 + u_time * 0.5 + noise * 2.0) * 0.5 + 0.5;
+        
+        vec3 orange = vec3(1.0, 0.45, 0.1);
+        vec3 cream = vec3(1.0, 0.96, 0.9);
+        
+        vec3 color = mix(cream, orange, wave * 0.25 * noise);
+        
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `;
+
+    function createShader(gl: WebGLRenderingContext, type: number, source: string) {
+      const shader = gl.createShader(type);
+      if (!shader) return null;
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      return shader;
     }
 
-    function draw() {
-      if (!ctx || !canvas) return;
-      time += 0.005;
+    const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+    const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+    if (!vertexShader || !fragmentShader) return;
 
-      // Create animated gradient
-      const gradient = ctx.createLinearGradient(
-        0,
-        0,
-        canvas.width * (0.5 + Math.sin(time) * 0.3),
-        canvas.height * (0.5 + Math.cos(time) * 0.3)
-      );
-      
-      gradient.addColorStop(0, "#fff8f5");
-      gradient.addColorStop(0.5, `rgba(255, ${Math.floor(115 + Math.sin(time) * 20)}, ${Math.floor(26 + Math.sin(time) * 10)}, 0.1)`);
-      gradient.addColorStop(1, "#fffaf8");
+    const program = gl.createProgram();
+    if (!program) return;
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    gl.useProgram(program);
 
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
 
-      // Draw floating circles
-      for (let i = 0; i < 3; i++) {
-        const x = canvas.width * (0.3 + i * 0.2) + Math.sin(time + i) * 50;
-        const y = canvas.height * (0.3 + i * 0.15) + Math.cos(time + i) * 30;
-        const radius = 100 + Math.sin(time + i) * 20;
-        
-        const circleGradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
-        circleGradient.addColorStop(0, "rgba(255, 115, 26, 0.08)");
-        circleGradient.addColorStop(1, "rgba(255, 115, 26, 0)");
-        
-        ctx.fillStyle = circleGradient;
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.fill();
-      }
+    const positionLocation = gl.getAttribLocation(program, "a_position");
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
-      animationId = requestAnimationFrame(draw);
+    const resolutionLocation = gl.getUniformLocation(program, "u_resolution");
+    const timeLocation = gl.getUniformLocation(program, "u_time");
+
+    let animationId: number;
+    const startTime = Date.now();
+
+    function resize() {
+      if (!canvas || !gl) return;
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      gl.viewport(0, 0, canvas.width, canvas.height);
+    }
+
+    function render() {
+      if (!gl || !canvas) return;
+      const time = (Date.now() - startTime) * 0.001;
+      gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+      gl.uniform1f(timeLocation, time);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      animationId = requestAnimationFrame(render);
     }
 
     resize();
     window.addEventListener("resize", resize);
-    draw();
+    render();
 
     return () => {
       window.removeEventListener("resize", resize);
@@ -77,73 +137,41 @@ function GradientBackground() {
     <canvas
       ref={canvasRef}
       className="pointer-events-none fixed inset-0 -z-10"
+      style={{ width: "100%", height: "100%" }}
     />
   );
 }
 
 export default function LoginPage() {
   return (
-    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-background lg:flex-row">
-      <GradientBackground />
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden">
+      <PlasmaBackground />
       <div className="noise-overlay pointer-events-none fixed inset-0" />
 
-      {/* Left panel - branding (hidden on mobile) */}
-      <div className="relative z-10 hidden flex-1 flex-col justify-between p-10 lg:flex">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="animate-pulse-glow flex size-10 items-center justify-center rounded-xl bg-primary">
-            <Sparkles className="size-5 text-primary-foreground" />
+      {/* Header */}
+      <header className="relative z-10 flex h-16 shrink-0 items-center justify-between px-6 lg:px-12">
+        <Link href="/" className="group flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-primary/90 shadow-lg transition-transform group-hover:scale-110">
+            <svg viewBox="0 0 24 24" className="size-5 text-primary-foreground" fill="currentColor">
+              <path d="M4 19V9l6-4v4l6-4v4l4-2.67V19H4z" />
+            </svg>
           </div>
-          <span className="text-lg font-bold tracking-tight">
-            Fábrica de Contenido
+          <span className="text-lg font-bold tracking-tight text-foreground/90">
+            Fabrica
           </span>
         </Link>
+      </header>
 
-        <div className="max-w-md space-y-6">
-          <h2 className="text-3xl font-bold leading-tight tracking-tight">
-            Automatiza tu{" "}
-            <span className="gradient-text">contenido social</span>
-          </h2>
-          <p className="text-lg text-muted-foreground">
-            Conecta tus proveedores de IA, programa publicaciones y escala tu
-            presencia digital sin esfuerzo.
-          </p>
-          <div className="flex gap-3">
-            {["IA", "Video", "Calendario", "Buffer"].map((tag) => (
-              <span
-                key={tag}
-                className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-sm font-medium text-primary"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <p className="text-sm text-muted-foreground">
-          Clerk + Neon + Prisma + Inngest
-        </p>
-      </div>
-
-      {/* Right panel - auth form */}
-      <div className="relative z-10 flex flex-1 flex-col">
-        {/* Mobile header */}
-        <div className="flex items-center justify-between p-4 lg:hidden">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-primary">
-              <Sparkles className="size-4 text-primary-foreground" />
-            </div>
-            <span className="font-semibold">Fábrica de Contenido</span>
-          </Link>
-        </div>
-
-        {/* Auth card centered */}
-        <div className="flex flex-1 flex-col items-center justify-center px-6">
-          <div className="glass w-full max-w-sm animate-scale-in space-y-6 rounded-3xl p-8">
-            <div className="space-y-2 text-center">
+      {/* Main Content */}
+      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-6">
+        <div className="w-full max-w-sm">
+          {/* Glass card */}
+          <div className="glass rounded-3xl p-8 shadow-2xl">
+            <div className="mb-6 text-center">
               <h1 className="text-2xl font-bold tracking-tight">
-                Iniciar sesión
+                Bienvenido de vuelta
               </h1>
-              <p className="text-sm text-muted-foreground">
+              <p className="mt-2 text-sm text-muted-foreground">
                 Accede a tu panel de control
               </p>
             </div>
@@ -157,34 +185,35 @@ export default function LoginPage() {
                   rootBox: "w-full",
                   card: "shadow-none border-0 bg-transparent p-0 w-full",
                   formButtonPrimary:
-                    "bg-primary hover:bg-primary/90 text-primary-foreground font-semibold",
+                    "bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl",
                   footerActionLink: "text-primary hover:text-primary/80 font-medium",
-                  formFieldInput: "border-border focus:border-primary focus:ring-primary",
+                  formFieldInput: "rounded-xl border-border/50 bg-background/50",
                 },
               }}
             />
+          </div>
 
-            <div className="space-y-3 pt-2 text-center text-sm">
-              <p className="text-muted-foreground">
-                {"No tienes cuenta? "}
-                <Link
-                  href="/sign-up"
-                  className="font-semibold text-primary underline-offset-4 hover:underline"
-                >
-                  Crear cuenta
-                </Link>
-              </p>
+          {/* Links */}
+          <div className="mt-6 flex flex-col items-center gap-3 text-sm">
+            <p className="text-foreground/60">
+              {"No tienes cuenta? "}
               <Link
-                href="/"
-                className="inline-flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"
+                href="/sign-up"
+                className="font-semibold text-primary underline-offset-4 hover:underline"
               >
-                <ArrowLeft className="size-3.5" />
-                Volver al inicio
+                Crear cuenta
               </Link>
-            </div>
+            </p>
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 text-foreground/50 transition-colors hover:text-foreground"
+            >
+              <ArrowLeft className="size-4" />
+              Volver al inicio
+            </Link>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
