@@ -15,7 +15,7 @@ export default function SettingsPage() {
           Claves cifradas, miembros del workspace y preferencias.
         </CardDescription>
       </CardHeader>
-      <CardContent className="text-sm text-zinc-600 dark:text-zinc-400">
+      <CardContent className="text-sm text-muted-foreground">
         TODO: UI de rotación/revocado de `EncryptedApiKey` sin exponer valores al
         cliente.
       </CardContent>

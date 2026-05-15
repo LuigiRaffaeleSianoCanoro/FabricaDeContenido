@@ -2,7 +2,6 @@ import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
-import { DashboardSignOut } from "@/components/dashboard/dashboard-sign-out";
 
 export const dynamic = "force-dynamic";
 
@@ -17,13 +16,10 @@ export default async function DashboardLayout({
   const email = user.emailAddresses[0]?.emailAddress ?? "";
 
   return (
-    <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950">
+    <div className="flex min-h-screen bg-background">
       <AppSidebar email={email} />
       <div className="flex flex-1 flex-col">
-        <header className="flex h-14 items-center justify-end border-b border-zinc-200 bg-white px-6 dark:border-zinc-800 dark:bg-zinc-950">
-          <DashboardSignOut />
-        </header>
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 overflow-auto p-6">{children}</main>
       </div>
     </div>
   );

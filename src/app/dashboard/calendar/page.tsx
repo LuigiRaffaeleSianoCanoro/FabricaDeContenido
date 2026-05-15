@@ -15,7 +15,7 @@ export default function CalendarPage() {
           Vista semanal/mensual de publicaciones programadas.
         </CardDescription>
       </CardHeader>
-      <CardContent className="text-sm text-zinc-600 dark:text-zinc-400">
+      <CardContent className="text-sm text-muted-foreground">
         TODO: usar `ScheduledPost` + integración Buffer.
       </CardContent>
     </Card>

@@ -15,7 +15,7 @@ export default function JobsPage() {
           Seguimiento de `ContentJob`, logs de skills y errores.
         </CardDescription>
       </CardHeader>
-      <CardContent className="text-sm text-zinc-600 dark:text-zinc-400">
+      <CardContent className="text-sm text-muted-foreground">
         TODO: tabla con estados y enlace a ejecución Inngest. Dead-letter: marcar
         `JobStatus.DEAD_LETTER` tras máximo de reintentos.
       </CardContent>

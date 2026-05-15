@@ -15,7 +15,7 @@ export default function AdminPage() {
           Fundamentos para métricas globales, moderación y soporte.
         </CardDescription>
       </CardHeader>
-      <CardContent className="text-sm text-zinc-600 dark:text-zinc-400">
+      <CardContent className="text-sm text-muted-foreground">
         TODO: proteger con rol interno; listar organizaciones, uso agregado y
         reenvío de webhooks fallidos (`WebhookEvent.status=FAILED`).
       </CardContent>

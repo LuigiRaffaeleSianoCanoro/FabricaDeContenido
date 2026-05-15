@@ -15,7 +15,7 @@ export default function ContentPage() {
           Biblioteca y cola de aprobación (vacío hasta conectar pipeline).
         </CardDescription>
       </CardHeader>
-      <CardContent className="text-sm text-zinc-600 dark:text-zinc-400">
+      <CardContent className="text-sm text-muted-foreground">
         TODO: listar `GeneratedContent` con filtros por estado y plataforma.
       </CardContent>
     </Card>
