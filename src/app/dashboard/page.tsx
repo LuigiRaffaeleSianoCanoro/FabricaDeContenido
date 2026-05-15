@@ -13,14 +13,15 @@ import { cn } from "@/lib/utils";
 
 export default async function DashboardHomePage() {
   const { user } = await requireSession();
+  const email = user.emailAddresses[0]?.emailAddress ?? "";
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Panel</h1>
         <p className="text-zinc-600 dark:text-zinc-400">
-          Hola {user.email}. Esta es la base del producto: orquestación, skills y
-          proveedores están cableados para extender.
+          Hola {email}. Esta es la base del producto: orquestación, skills y proveedores
+          están cableados para extender.
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -43,9 +44,7 @@ export default async function DashboardHomePage() {
         <Card>
           <CardHeader>
             <CardTitle>Trabajos</CardTitle>
-            <CardDescription>
-              Monitorea ejecuciones Inngest y reintentos.
-            </CardDescription>
+            <CardDescription>Monitorea ejecuciones Inngest y reintentos.</CardDescription>
           </CardHeader>
           <CardContent>
             <Link

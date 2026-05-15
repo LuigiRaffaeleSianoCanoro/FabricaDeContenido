@@ -1,18 +1,20 @@
 # Fabrica de Contenido
 
-Base de producto tipo **SaaS multi-tenant** para generar y publicar contenido social con IA, video (Remotion + GitHub Actions), TTS gratuito (Microsoft Edge), y publicación vía **Buffer**. Está pensada para **Vercel + Supabase**, con colas **Inngest** y **Prisma** sobre PostgreSQL.
+Base de producto tipo **SaaS multi-tenant** para generar y publicar contenido social con IA, video (Remotion + GitHub Actions), TTS gratuito (Microsoft Edge), y publicación vía **Buffer**. Está pensada para **Vercel + Clerk + Neon** (o cualquier Postgres), con colas **Inngest** y **Prisma**.
 
 ## Arquitectura (resumen)
 
 - **App web**: Next.js 16 (App Router), TypeScript estricto, Tailwind 4, componentes **shadcn** (Base UI).
-- **Auth + DB**: Supabase Auth (cookies SSR) + **Prisma** con el mismo Postgres (URL directa en `DATABASE_URL`).
+- **Auth**: **Clerk** (`ClerkProvider`, middleware en `src/middleware.ts`, `/login` y `/sign-up` con `<SignIn>` / `<SignUp>`).
+- **DB**: **PostgreSQL** vía **Prisma**; `DATABASE_URL` apunta a **Neon** (recomendado) u otro host.
 - **Orquestación**: **Inngest** (`src/lib/inngest/`, endpoint `POST/GET/PUT /api/inngest`). Interfaz genérica de cola en `src/lib/queue/types.ts` para un futuro adaptador BullMQ.
-- **IA**: fábrica y adaptadores en `src/lib/ai/` (`openai`, `anthropic`, `gemini`, `openrouter`). Las claves las aporta cada tenant; se guardan cifradas.
+- **IA**: fábrica y adaptadores en `src/lib/ai/`. Las claves las aporta cada tenant; se guardan cifradas.
 - **TTS**: `edge-tts-universal` en `src/lib/tts/` (sin API key).
 - **Publicación**: Buffer en `src/lib/publishing/providers/buffer.ts`.
-- **Video**: disparo de **GitHub Actions** (`src/lib/video/github-actions.ts`) + workflow esqueleto en `.github/workflows/render-video.yml`; activos en **R2** (`src/lib/storage/r2.ts`).
-- **Skills**: registro + ejecutor con Zod + trazas en `SkillExecution` (`src/skills/`).
-- **Seguridad**: `ENCRYPTION_MASTER_KEY` para AES-256-GCM (`src/lib/encryption/cipher.ts`); validación de env en servidor (`src/config/env.server.ts`).
+- **Video**: GitHub Actions (`src/lib/video/github-actions.ts`) + `.github/workflows/render-video.yml`; activos en **R2** (`src/lib/storage/r2.ts`).
+- **Skills**: registro + ejecutor con Zod + `SkillExecution` (`src/skills/`).
+- **Seguridad**: `ENCRYPTION_MASTER_KEY` (AES-256-GCM); validación de env (`src/config/env.server.ts`).
+- **Sync usuarios**: webhook Clerk → `/api/webhooks/clerk` opcional (`CLERK_WEBHOOK_SECRET`) para rellenar `UserProfile`.
 
 ```mermaid
 flowchart LR
@@ -21,10 +23,10 @@ flowchart LR
     API[API routes]
   end
   subgraph data [Data]
-    SB[(Supabase Auth)]
+    Clerk[(Clerk Auth)]
     PG[(Postgres/Prisma)]
   end
-  UI --> SB
+  UI --> Clerk
   API --> PG
   API --> Inngest[Inngest]
   Inngest --> Skills[Skills]
@@ -37,74 +39,59 @@ flowchart LR
 
 ## Requisitos
 
-- Node.js 22+ (recomendado; probado con 22 alpine en Docker).
-- Cuenta **Supabase** (proyecto + URLs en dashboard).
-- Opcional: Inngest, Upstash (rate limit), Cloudflare R2, GitHub PAT para render.
+- Node.js 22+.
+- Cuenta **Clerk** (API keys) y proyecto **Neon** (o Postgres compatible).
+- Opcional: Inngest, Upstash, Cloudflare R2, GitHub PAT para render.
 
 ## Configuración local
 
-1. Copia variables: `.env.example` → `.env` (o `.env.local`).
-
-2. Arranca Postgres local (opcional):
-
-   ```bash
-   docker compose -f docker/docker-compose.yml up -d
-   ```
-
-3. Ajusta `DATABASE_URL` (Supabase o el Postgres del compose).
-
-4. Esquema:
+1. Copia [.env.example](.env.example) → `.env` (o `.env.local`).
+2. **Neon**: crea base y pega `DATABASE_URL` (SSL).
+3. **Clerk**: crea aplicación → API Keys → `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`. En el dashboard de Clerk configura URLs permitidas (dev: `http://localhost:3000`).
+4. Postgres local opcional: `docker compose -f docker/docker-compose.yml up -d`
+5. Esquema:
 
    ```bash
    npx prisma migrate dev --name init
    ```
 
-   o, solo en desarrollo rápido:
+   o `npm run db:push`
 
-   ```bash
-   npm run db:push
-   ```
-
-5. Semilla mínima (definiciones de skills en BD):
+6. Semilla skills:
 
    ```bash
    npm run db:seed
    ```
 
-6. En Supabase: **Authentication → URL configuration**  
-   - Site URL: tu `NEXT_PUBLIC_APP_URL`  
-   - Redirect URLs: `{NEXT_PUBLIC_APP_URL}/auth/callback`
+7. **Webhook (opcional)**: en Clerk → Webhooks → endpoint `https://TU_DOMINIO/api/webhooks/clerk` → eventos `user.*` → copia `CLERK_WEBHOOK_SECRET` a `.env`.
 
-7. Arranque:
+8. Arranque:
 
    ```bash
    npm install
    npm run dev
    ```
 
-   Rutas útiles: `/` (marketing), `/login` (magic link), `/dashboard` (protegido).
+   Rutas: `/`, `/login`, `/sign-up`, `/dashboard` (protegido).
 
 ## Variables de entorno
 
 Ver [.env.example](.env.example). Obligatorias para el servidor:
 
-- `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_APP_URL`, `ENCRYPTION_MASTER_KEY` (64 hex).
+- `DATABASE_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_APP_URL`, `ENCRYPTION_MASTER_KEY` (64 hex).
 
-Opcionales: Inngest, Upstash, R2, GitHub (`GITHUB_*`).
+Opcionales: `CLERK_WEBHOOK_SECRET`, Inngest, Upstash, R2, GitHub.
 
-**Build / CI**: el `next build` necesita esas variables presentes (puedes usar valores placeholder en pipelines no productivos).
+**Build / CI**: define las obligatorias (placeholders no productivos están bien).
 
 ## Docker (app)
-
-Imagen de ejemplo (argumentos de build requeridos):
 
 ```bash
 docker build -f docker/Dockerfile \
   --build-arg DATABASE_URL=postgresql://... \
-  --build-arg NEXT_PUBLIC_SUPABASE_URL=... \
-  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=... \
-  --build-arg SUPABASE_SERVICE_ROLE_KEY=... \
-  --build-arg NEXT_PUBLIC_APP_URL=... \
+  --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_... \
+  --build-arg CLERK_SECRET_KEY=sk_... \
+  --build-arg NEXT_PUBLIC_APP_URL=http://localhost:3000 \
   --build-arg ENCRYPTION_MASTER_KEY=... \
   -t fabrica .
 docker run -p 3000:3000 --env-file .env fabrica
@@ -112,30 +99,20 @@ docker run -p 3000:3000 --env-file .env fabrica
 
 ## Inngest
 
-- Servidor de funciones: `/api/inngest`.
-- Registra el app en Inngest Cloud y apunta la URL de producción a ese endpoint.
+- `/api/inngest`
 - Funciones de ejemplo: `fabrica-health-ping`, `fabrica-content-pipeline-v1` en `src/lib/inngest/functions.ts`.
 
 ## TODOs de producción (prioridad alta)
 
-- **Perfiles**: sincronizar `UserProfile` con `auth.users` (trigger SQL o webhook Supabase).
-- **Organizaciones**: flujo de creación y `OrganizationMember` tras primer login.
-- **RBAC**: roles en BD + comprobación en rutas admin y acciones sensibles.
-- **Claves**: UI para alta/rotación/revocado de `EncryptedApiKey` solo server-side; nunca exponer material al cliente.
-- **Buffer OAuth**: flujo completo y almacenamiento del token cifrado (`ApiKeyProvider.BUFFER`).
-- **Rate limiting**: `Upstash` en API públicas y webhooks (esqueleto pendiente en `src/lib/utils/`).
-- **GitHub render**: completar workflow (descarga de assets, `remotion render`, subida R2, firma de webhook a `/api/webhooks/video-complete`).
-- **Remotion**: añadir carpeta `remotion/` con composiciones y `remotion.config.ts`; enlazar al workflow.
-- **Middleware Next 16**: migrar de `middleware` a la convención `proxy` cuando estabilices la guía oficial.
-- **Zapier**: exponer esquemas de webhook salientes reutilizando `WebhookEndpoint` / `WebhookEvent`.
-- **Observabilidad**: métricas OpenTelemetry (Inngest ya trae hooks), alertas sobre `DEAD_LETTER`.
+- **Perfiles**: asegurar webhook Clerk o sync al primer acceso a dashboard.
+- **Organizaciones**: flujo Clerk Organizations o tablas `Organization` + `OrganizationMember`.
+- **RBAC**: roles y guards en rutas admin.
+- **Claves**: UI para `EncryptedApiKey` solo server-side.
+- **Buffer OAuth** y resto del plan de producto.
 
 ## Escalado futuro
 
-- Particionar tablas de **usage** y **audit** por tiempo.
-- Cola dedicada (**BullMQ**) para tenants enterprise implementando `JobQueue`.
-- **Remotion Lambda** si superas minutos gratuitos de GitHub Actions.
-- Read replicas Postgres y Prisma Accelerate bajo carga de lectura.
+- Particionar usage/audit; BullMQ; Remotion Lambda; read replicas / Accelerate.
 
 ## Licencia
 

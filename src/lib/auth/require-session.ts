@@ -1,18 +1,18 @@
 import "server-only";
 
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-
 export async function requireSession() {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { userId } = await auth();
+  if (!userId) {
+    redirect("/login");
+  }
 
+  const user = await currentUser();
   if (!user) {
     redirect("/login");
   }
 
-  return { supabase, user };
+  return { userId, user };
 }
