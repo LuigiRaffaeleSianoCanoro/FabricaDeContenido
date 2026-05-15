@@ -52,3 +52,32 @@ export async function touchApiKeyUsed(id: string) {
     data: { lastUsedAt: new Date() },
   });
 }
+
+const AI_PROVIDERS: ApiKeyProvider[] = ["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER"];
+
+export async function getFirstActiveAiKeyForOrg(organizationId: string) {
+  for (const provider of AI_PROVIDERS) {
+    const row = await prisma.encryptedApiKey.findFirst({
+      where: { organizationId, provider, isActive: true, revokedAt: null },
+    });
+    if (row) return { row, provider };
+  }
+  return null;
+}
+
+export async function getBufferAccessTokenForOrg(organizationId: string) {
+  const row = await prisma.encryptedApiKey.findFirst({
+    where: { organizationId, provider: "BUFFER", isActive: true, revokedAt: null },
+  });
+  if (!row) return null;
+  const env = getServerEnv();
+  const secret = decryptSecret(
+    {
+      ciphertext: row.encryptedPayload,
+      iv: row.iv,
+      authTag: row.authTag,
+    },
+    env.ENCRYPTION_MASTER_KEY,
+  );
+  return { token: secret, keyId: row.id };
+}
