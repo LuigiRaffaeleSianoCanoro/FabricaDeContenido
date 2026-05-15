@@ -1,7 +1,6 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
-const isProtectedRoute = createRouteMatcher(["/dashboard(.*)"]);
+const isProtectedRoute = (pathname: string) => pathname.startsWith("/dashboard");
 
 function clerkEnvMissing(): boolean {
   return (
@@ -10,25 +9,28 @@ function clerkEnvMissing(): boolean {
   );
 }
 
-export default clerkMiddleware(async (auth, req) => {
-  // Avoid hard Edge failures when Vercel env is incomplete (common on first deploy).
+async function withClerk(req: NextRequest) {
+  const { clerkMiddleware, createRouteMatcher } = await import(
+    "@clerk/nextjs/server"
+  );
+  const matcher = createRouteMatcher(["/dashboard(.*)"]);
+  return clerkMiddleware(async (auth, r) => {
+    if (matcher(r)) await auth.protect();
+  })(req, {} as never);
+}
+
+export default async function middleware(req: NextRequest) {
   if (clerkEnvMissing()) {
-    console.error(
-      "[middleware] Missing CLERK_SECRET_KEY or NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY — set them in Vercel (see VERCEL.md)",
-    );
-    if (isProtectedRoute(req)) {
-      const url = new URL(req.url);
+    if (isProtectedRoute(req.nextUrl.pathname)) {
+      const url = req.nextUrl.clone();
       url.pathname = "/login";
       url.searchParams.set("configuration_error", "clerk_env");
       return NextResponse.redirect(url);
     }
     return NextResponse.next();
   }
-
-  if (isProtectedRoute(req)) {
-    await auth.protect();
-  }
-});
+  return withClerk(req);
+}
 
 export const config = {
   matcher: [
