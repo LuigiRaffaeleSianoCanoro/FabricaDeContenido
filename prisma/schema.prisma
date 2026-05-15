@@ -1,0 +1,416 @@
+// Production-oriented schema for FabricaDeContenido.
+// Supabase owns auth.users; UserProfile mirrors app-facing profile data.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum ApiKeyProvider {
+  OPENAI
+  ANTHROPIC
+  GEMINI
+  OPENROUTER
+  BUFFER
+  CUSTOM
+}
+
+enum JobStatus {
+  PENDING
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  DEAD_LETTER
+}
+
+enum JobType {
+  CONTENT_GENERATION
+  VIDEO_RENDER
+  TTS
+  SCHEDULE
+  PUBLISH
+  WORKFLOW
+}
+
+enum ContentType {
+  POST
+  THREAD
+  CAROUSEL
+  REEL
+  SHORT
+  STORY
+}
+
+enum ContentStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SCHEDULED
+  PUBLISHED
+  FAILED
+}
+
+enum VideoRenderStatus {
+  PENDING
+  QUEUED
+  RENDERING
+  SUCCEEDED
+  FAILED
+}
+
+enum ScheduledPostStatus {
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  CANCELLED
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+}
+
+model UserProfile {
+  id        String   @id @db.Uuid
+  email     String   @unique
+  fullName  String?
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships OrganizationMember[]
+  ownedOrgs   Organization[]         @relation("OrgOwner")
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  ownerId   String   @db.Uuid
+  plan      Plan     @default(FREE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner UserProfile @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+
+  members        OrganizationMember[]
+  apiKeys        EncryptedApiKey[]
+  socialAccounts SocialAccount[]
+  contentConfigs ContentConfig[]
+  contentJobs    ContentJob[]
+  workflows      Workflow[]
+  auditLogs      AuditLog[]
+  usageRecords   UsageRecord[]
+  webhooks       WebhookEndpoint[]
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String   @db.Uuid
+  role           MemberRole @default(MEMBER)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         UserProfile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+model EncryptedApiKey {
+  id               String         @id @default(cuid())
+  organizationId   String
+  provider         ApiKeyProvider
+  label            String?
+  encryptedPayload String
+  iv               String
+  authTag          String
+  keyFingerprint   String
+  lastUsedAt       DateTime?
+  lastRotatedAt    DateTime       @default(now())
+  revokedAt        DateTime?
+  isActive         Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider])
+  @@index([organizationId, isActive])
+}
+
+model SocialAccount {
+  id             String   @id @default(cuid())
+  organizationId String
+  bufferId       String?
+  platform       String
+  handle         String?
+  displayName    String?
+  avatarUrl      String?
+  metadata       Json     @default("{}")
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, platform, handle])
+  @@index([organizationId])
+}
+
+model ContentConfig {
+  id               String   @id @default(cuid())
+  organizationId   String
+  name             String
+  isDefault        Boolean  @default(false)
+  postsPerDay      Int      @default(1)
+  postingSchedule  Json     @default("[]")
+  topics           String[] @default([])
+  tone             String
+  personality      String?
+  targetAudience   String
+  contentTypes     String[] @default([])
+  platforms        String[] @default([])
+  autoPost         Boolean  @default(false)
+  requireApproval  Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  jobs         ContentJob[]
+
+  @@index([organizationId])
+}
+
+model Workflow {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  definition     Json     @default("{}")
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  jobs         ContentJob[]
+
+  @@index([organizationId])
+}
+
+model ContentJob {
+  id             String    @id @default(cuid())
+  organizationId String
+  configId       String?
+  workflowId     String?
+  status         JobStatus  @default(PENDING)
+  type           JobType
+  priority       Int        @default(0)
+  input          Json       @default("{}")
+  output         Json?
+  progress       Float      @default(0)
+  progressMessage String?
+  idempotencyKey String?   @unique
+  startedAt      DateTime?
+  completedAt    DateTime?
+  failedAt       DateTime?
+  errorMessage   String?
+  retryCount     Int        @default(0)
+  maxRetries     Int        @default(3)
+  inngestEventId String?
+  inngestRunId   String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  config           ContentConfig?    @relation(fields: [configId], references: [id], onDelete: SetNull)
+  workflow         Workflow?         @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  generatedContent GeneratedContent[]
+  skillExecutions  SkillExecution[]
+  videoRenders     VideoRender[]
+
+  @@index([organizationId, status])
+  @@index([type, status])
+}
+
+model GeneratedContent {
+  id               String        @id @default(cuid())
+  jobId            String
+  organizationId   String
+  type             ContentType
+  platform         String
+  title            String?
+  body             String
+  hashtags         String[]      @default([])
+  mediaUrls        String[]      @default([])
+  videoRenderId    String?
+  videoUrl         String?
+  thumbnailUrl     String?
+  status           ContentStatus @default(DRAFT)
+  approvedAt       DateTime?
+  approvedBy       String?       @db.Uuid
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  job           ContentJob      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  videoRender   VideoRender?    @relation(fields: [videoRenderId], references: [id], onDelete: SetNull)
+  scheduledPosts ScheduledPost[]
+
+  @@index([organizationId, status])
+}
+
+model VideoRender {
+  id               String             @id @default(cuid())
+  jobId            String
+  organizationId   String
+  status           VideoRenderStatus  @default(PENDING)
+  compositionId    String
+  props            Json               @default("{}")
+  aspectRatio      String
+  durationSeconds  Int?
+  assetUrls        Json               @default("{}")
+  outputUrl        String?
+  githubRunUrl     String?
+  errorMessage     String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  job              ContentJob         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  generatedContent GeneratedContent[]
+
+  @@index([organizationId, status])
+}
+
+model ScheduledPost {
+  id                  String              @id @default(cuid())
+  generatedContentId  String
+  organizationId    String
+  bufferProfileId     String?
+  bufferUpdateId      String?
+  scheduledFor        DateTime
+  status              ScheduledPostStatus @default(SCHEDULED)
+  lastError           String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  generatedContent GeneratedContent @relation(fields: [generatedContentId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, scheduledFor])
+}
+
+model SkillDefinition {
+  id          String   @id
+  name        String
+  description String?
+  version     String
+  category    String
+  inputSchema Json
+  outputSchema Json
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  executions SkillExecution[]
+}
+
+model SkillExecution {
+  id             String   @id @default(cuid())
+  jobId          String
+  skillId        String
+  attempt        Int      @default(1)
+  input          Json     @default("{}")
+  output         Json?
+  errorMessage   String?
+  startedAt      DateTime @default(now())
+  completedAt    DateTime?
+
+  job   ContentJob      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  skill SkillDefinition @relation(fields: [skillId], references: [id], onDelete: Restrict)
+
+  @@index([jobId])
+  @@index([skillId])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  actorUserId    String?  @db.Uuid
+  action         String
+  resourceType   String
+  resourceId     String?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+}
+
+model UsageRecord {
+  id             String   @id @default(cuid())
+  organizationId String
+  metric         String
+  quantity       Int      @default(1)
+  unitCostMicros Int?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, metric, createdAt])
+}
+
+model WebhookEndpoint {
+  id             String   @id @default(cuid())
+  organizationId String
+  url            String
+  secret         String
+  isActive       Boolean  @default(true)
+  eventTypes     String[] @default([])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  events       WebhookEvent[]
+
+  @@index([organizationId])
+}
+
+model WebhookEvent {
+  id           String                @id @default(cuid())
+  endpointId   String
+  eventType    String
+  payload      Json                  @default("{}")
+  status       WebhookDeliveryStatus @default(PENDING)
+  attempts     Int                   @default(0)
+  lastError    String?
+  deliveredAt  DateTime?
+  createdAt    DateTime              @default(now())
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId, status])
+}

@@ -1,0 +1,56 @@
+import "server-only";
+
+import { flattenError, z } from "zod";
+
+const hex32Bytes = z
+  .string()
+  .length(64, "ENCRYPTION_MASTER_KEY must be 64 hex chars (32 bytes)")
+  .regex(/^[0-9a-fA-F]+$/, "ENCRYPTION_MASTER_KEY must be hexadecimal");
+
+const envSchema = z.object({
+  NODE_ENV: z
+    .enum(["development", "production", "test"])
+    .default("development"),
+
+  DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+
+  NEXT_PUBLIC_APP_URL: z.string().url(),
+
+  ENCRYPTION_MASTER_KEY: hex32Bytes,
+
+  INNGEST_EVENT_KEY: z.string().optional(),
+  INNGEST_SIGNING_KEY: z.string().optional(),
+
+  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET_NAME: z.string().optional(),
+  R2_PUBLIC_URL: z.string().url().optional(),
+
+  GITHUB_REPO_OWNER: z.string().optional(),
+  GITHUB_REPO_NAME: z.string().optional(),
+  GITHUB_PAT: z.string().optional(),
+});
+
+export type ServerEnv = z.infer<typeof envSchema>;
+
+let cached: ServerEnv | null = null;
+
+/** Validated env for server-only code paths (API routes, server actions, workers). */
+export function getServerEnv(): ServerEnv {
+  if (cached) return cached;
+  const parsed = envSchema.safeParse(process.env);
+  if (!parsed.success) {
+    const fields = flattenError(parsed.error).fieldErrors;
+    throw new Error(`Invalid environment variables: ${JSON.stringify(fields)}`);
+  }
+  cached = parsed.data;
+  return parsed.data;
+}
