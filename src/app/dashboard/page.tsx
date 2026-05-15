@@ -9,9 +9,14 @@ import {
   Zap,
   TrendingUp,
 } from "lucide-react";
+import { redirect } from "next/navigation";
 
-import { requireSession } from "@/lib/auth/require-session";
+import { requestPipelineRun } from "@/app/dashboard/actions";
 import { buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
+import { requireSession } from "@/lib/auth/require-session";
+import { prisma } from "@/lib/db/prisma";
 import { cn } from "@/lib/utils";
 
 const quickActions = [
@@ -45,25 +50,44 @@ const quickActions = [
   },
 ];
 
-const stats = [
-  { label: "Contenidos", value: "0", icon: Sparkles },
-  { label: "Trabajos activos", value: "0", icon: Zap },
-  { label: "Programados", value: "0", icon: Calendar },
-  { label: "Publicados", value: "0", icon: TrendingUp },
-];
-
 export default async function DashboardHomePage() {
-  const { user } = await requireSession();
+  const { user, userId } = await requireSession();
   const email = user.emailAddresses[0]?.emailAddress ?? "";
   const name = email.split("@")[0];
 
+  const org = await getActiveOrganizationForUser(userId);
+  if (!org) {
+    redirect("/dashboard/onboarding");
+  }
+
+  const [contentCount, activeJobs, scheduledCount, publishedCount] = await Promise.all([
+    prisma.generatedContent.count({ where: { organizationId: org.id } }),
+    prisma.contentJob.count({
+      where: {
+        organizationId: org.id,
+        status: { in: ["PENDING", "QUEUED", "RUNNING"] },
+      },
+    }),
+    prisma.scheduledPost.count({
+      where: { organizationId: org.id, status: "SCHEDULED" },
+    }),
+    prisma.scheduledPost.count({
+      where: { organizationId: org.id, status: "PUBLISHED" },
+    }),
+  ]);
+
+  const stats = [
+    { label: "Contenidos", value: String(contentCount), icon: Sparkles },
+    { label: "Trabajos activos", value: String(activeJobs), icon: Zap },
+    { label: "Programados", value: String(scheduledCount), icon: Calendar },
+    { label: "Publicados", value: String(publishedCount), icon: TrendingUp },
+  ];
+
   return (
     <div className="relative flex h-full flex-col overflow-hidden p-6 lg:p-8">
-      {/* Background glow */}
       <div className="pointer-events-none absolute -right-40 -top-40 size-80 rounded-full bg-primary/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 -left-40 size-60 rounded-full bg-primary/5 blur-3xl" />
 
-      {/* Header */}
       <div className="relative z-10 mb-8">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Panel de control</span>
@@ -75,11 +99,10 @@ export default async function DashboardHomePage() {
           Hola, <span className="gradient-text">{name}</span>
         </h1>
         <p className="mt-2 text-muted-foreground">
-          Bienvenido a tu panel. Gestiona tu contenido, trabajos y configuración.
+          Workspace: <span className="font-medium text-foreground">{org.name}</span>
         </p>
       </div>
 
-      {/* Stats grid */}
       <div className="relative z-10 mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {stats.map((stat, index) => (
           <div
@@ -96,7 +119,21 @@ export default async function DashboardHomePage() {
         ))}
       </div>
 
-      {/* Quick actions */}
+      <div className="relative z-10 mb-8">
+        <div className="glass gradient-border overflow-hidden rounded-2xl p-5">
+          <h3 className="mb-3 font-semibold">Generar contenido</h3>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Lanza el pipeline Inngest (hooks con IA según tu ContentConfig).
+          </p>
+          <form action={requestPipelineRun} className="flex flex-wrap items-center gap-3">
+            <input type="hidden" name="organizationId" value={org.id} />
+            <Button type="submit" className="orange-glow bg-primary font-semibold text-primary-foreground">
+              Ejecutar pipeline
+            </Button>
+          </form>
+        </div>
+      </div>
+
       <div className="relative z-10 flex-1">
         <h2 className="mb-4 text-lg font-semibold">Acciones rápidas</h2>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -116,16 +153,13 @@ export default async function DashboardHomePage() {
               </div>
               <div className="relative z-10 mt-4">
                 <h3 className="font-semibold">{action.title}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {action.description}
-                </p>
+                <p className="mt-1 text-sm text-muted-foreground">{action.description}</p>
               </div>
             </Link>
           ))}
         </div>
       </div>
 
-      {/* CTA */}
       <div className="relative z-10 mt-8">
         <div className="glass gradient-border overflow-hidden rounded-2xl p-6">
           <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
@@ -135,15 +169,14 @@ export default async function DashboardHomePage() {
             <div className="flex-1">
               <h3 className="font-semibold">Completa tu configuración</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                Conecta tus proveedores de IA y redes para empezar a generar
-                contenido.
+                Conecta tus proveedores de IA y redes para empezar a generar contenido.
               </p>
             </div>
             <Link
               href="/dashboard/onboarding"
               className={cn(
                 buttonVariants({ size: "lg" }),
-                "orange-glow shrink-0 gap-2 bg-primary font-semibold text-primary-foreground hover:bg-primary/90"
+                "orange-glow shrink-0 gap-2 bg-primary font-semibold text-primary-foreground hover:bg-primary/90",
               )}
             >
               Comenzar

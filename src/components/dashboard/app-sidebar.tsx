@@ -15,6 +15,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 
+import { OrgSwitcher } from "@/components/dashboard/org-switcher";
+import type { OrgWithRole } from "@/lib/auth/active-org";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -27,7 +29,15 @@ const navItems = [
   { href: "/dashboard/admin", label: "Admin", icon: Shield },
 ];
 
-export function AppSidebar({ email }: { email: string }) {
+export function AppSidebar({
+  email,
+  organizations,
+  activeOrganizationId,
+}: {
+  email: string;
+  organizations: OrgWithRole[];
+  activeOrganizationId: string | null;
+}) {
   const pathname = usePathname();
 
   return (
@@ -43,6 +53,13 @@ export function AppSidebar({ email }: { email: string }) {
         <span className="font-bold tracking-tight text-sidebar-foreground">
           Fábrica
         </span>
+      </div>
+
+      <div className="relative z-10 border-b border-sidebar-border/40 px-3 py-2">
+        <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/45">
+          Workspace
+        </p>
+        <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
       </div>
 
       {/* Navigation */}

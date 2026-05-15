@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { inngest } from "@/lib/inngest/client";
+import { prisma } from "@/lib/db/prisma";
 import { z } from "zod";
 
 const bodySchema = z.object({
@@ -11,17 +13,75 @@ const bodySchema = z.object({
 
 /**
  * Invoked by the GitHub Actions render workflow when a video finishes.
- * TODO: verify shared secret header; update `VideoRender` + enqueue Buffer publish.
  */
 export async function POST(req: Request) {
+  const secret = process.env.VIDEO_WEBHOOK_SECRET?.trim();
+  if (secret) {
+    const header = req.headers.get("x-fabrica-webhook-secret");
+    if (header !== secret) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
+
   const json: unknown = await req.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  // eslint-disable-next-line no-console
-  console.info("video-complete webhook", parsed.data);
+  const { jobId, status, outputUrl, error } = parsed.data;
+
+  const render = await prisma.videoRender.findFirst({
+    where: { jobId },
+    orderBy: { createdAt: "desc" },
+    include: {
+      generatedContent: true,
+      job: { include: { organization: { include: { contentConfigs: { where: { isDefault: true }, take: 1 } } } } },
+    },
+  });
+
+  if (!render) {
+    return NextResponse.json({ error: "VideoRender not found" }, { status: 404 });
+  }
+
+  if (status === "failed") {
+    await prisma.videoRender.update({
+      where: { id: render.id },
+      data: {
+        status: "FAILED",
+        errorMessage: error ?? "Render failed",
+      },
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (!outputUrl) {
+    return NextResponse.json({ error: "outputUrl required when completed" }, { status: 400 });
+  }
+
+  await prisma.$transaction([
+    prisma.videoRender.update({
+      where: { id: render.id },
+      data: {
+        status: "SUCCEEDED",
+        outputUrl,
+      },
+    }),
+    prisma.generatedContent.updateMany({
+      where: { videoRenderId: render.id },
+      data: { videoUrl: outputUrl },
+    }),
+  ]);
+
+  const cfg = render.job.organization.contentConfigs[0];
+  if (cfg?.autoPost) {
+    for (const gc of render.generatedContent) {
+      await inngest.send({
+        name: "content/publish.requested",
+        data: { organizationId: render.organizationId, generatedContentId: gc.id },
+      });
+    }
+  }
 
   return NextResponse.json({ ok: true });
 }
