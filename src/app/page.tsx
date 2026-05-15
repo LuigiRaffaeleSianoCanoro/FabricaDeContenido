@@ -26,7 +26,7 @@ export default function HomePage() {
             Configura una vez. Publica en redes con IA, video y calendario.
           </h1>
           <p className="text-lg text-zinc-600 dark:text-zinc-400">
-            Base pensada para escalar: Supabase + Prisma, colas Inngest, skills
+            Base pensada para escalar: Clerk + Neon + Prisma, colas Inngest, skills
             modulares, render de video vía GitHub Actions y R2, sin acoplar
             proveedores.
           </p>
