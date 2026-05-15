@@ -16,10 +16,10 @@ export default async function DashboardLayout({
   const email = user.emailAddresses[0]?.emailAddress ?? "";
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-screen w-screen overflow-hidden bg-background">
       <AppSidebar email={email} />
-      <div className="flex flex-1 flex-col">
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <main className="flex-1 overflow-auto">{children}</main>
       </div>
     </div>
   );
