@@ -87,7 +87,6 @@ export function AppSidebar({ email }: { email: string }) {
       <div className="relative z-10 border-t border-sidebar-border/50 p-4">
         <div className="flex items-center gap-3 rounded-xl bg-sidebar-accent/50 px-3 py-2.5">
           <UserButton
-            afterSignOutUrl="/login"
             appearance={{
               elements: {
                 avatarBox: "size-9 ring-2 ring-primary/20",
