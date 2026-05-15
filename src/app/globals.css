@@ -128,3 +128,10 @@
     @apply font-sans;
   }
 }
+
+/* Brand: fluorescent orange (Nike shoe-box energy) + sharp contrast */
+:root {
+  --brand-orange: #ff4d00;
+  --brand-orange-bright: #ff6a1a;
+  --brand-glow: rgba(255, 77, 0, 0.45);
+}

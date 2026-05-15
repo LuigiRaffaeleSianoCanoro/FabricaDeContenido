@@ -38,6 +38,12 @@ const envSchema = z.object({
   GITHUB_REPO_OWNER: z.string().optional(),
   GITHUB_REPO_NAME: z.string().optional(),
   GITHUB_PAT: z.string().optional(),
+
+  /** Shared secret for `POST /api/webhooks/video-complete` (GitHub Actions callback). */
+  VIDEO_WEBHOOK_SECRET: z.string().optional(),
+
+  /** Comma-separated emails allowed to access `/dashboard/admin`. */
+  ADMIN_EMAILS: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof envSchema>;

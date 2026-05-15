@@ -1,47 +1,41 @@
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { redirect } from "next/navigation";
 
-const steps = [
-  "Cuenta y organización",
-  "Clave de IA (OpenAI / Anthropic / Gemini / OpenRouter)",
-  "Buffer y cuentas sociales",
-  "Preferencias de contenido y calendario",
-  "Revisión y activación",
-];
+import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
+import { requireSession } from "@/lib/auth/require-session";
+import { prisma } from "@/lib/db/prisma";
 
-export default function OnboardingPage() {
-  return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Onboarding</h1>
-        <p className="text-zinc-600 dark:text-zinc-400">
-          Asistente por pasos (placeholder UI). La persistencia irá a Prisma +
-          flujos server actions.
-        </p>
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Pasos previstos</CardTitle>
-          <CardDescription>Implementación incremental en siguientes PRs.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ol className="list-decimal space-y-2 pl-5 text-sm">
-            {steps.map((s) => (
-              <li key={s}>{s}</li>
-            ))}
-          </ol>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Badge variant="secondary">TODO: wizard</Badge>
-            <Badge variant="secondary">TODO: Buffer OAuth</Badge>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+import { OnboardingWizard } from "./onboarding-wizard";
+
+const AI_PROVIDERS = ["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER"] as const;
+
+export default async function OnboardingPage() {
+  const { userId } = await requireSession();
+  const org = await getActiveOrganizationForUser(userId);
+
+  const hasAiKey = org
+    ? !!(await prisma.encryptedApiKey.findFirst({
+        where: {
+          organizationId: org.id,
+          provider: { in: [...AI_PROVIDERS] },
+          isActive: true,
+          revokedAt: null,
+        },
+      }))
+    : false;
+
+  const hasContentConfig = org
+    ? !!(await prisma.contentConfig.findFirst({
+        where: { organizationId: org.id, isDefault: true },
+      }))
+    : false;
+
+  if (org && hasAiKey && hasContentConfig) {
+    redirect("/dashboard");
+  }
+
+  let initialStep = 1;
+  if (org && !hasAiKey) initialStep = 2;
+  else if (org && hasAiKey && !hasContentConfig) initialStep = 3;
+
+  return <OnboardingWizard initialStep={initialStep} initialOrgId={org?.id ?? null} />;
 }

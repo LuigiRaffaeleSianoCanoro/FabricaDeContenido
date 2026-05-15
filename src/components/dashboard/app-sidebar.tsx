@@ -1,6 +1,8 @@
 import Link from "next/link";
 
+import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import type { OrgWithRole } from "@/lib/auth/active-org";
 
 const items = [
   { href: "/dashboard", label: "Resumen" },
@@ -12,11 +14,19 @@ const items = [
   { href: "/dashboard/admin", label: "Admin" },
 ];
 
-export function AppSidebar(props: { email: string }) {
+export function AppSidebar(props: {
+  email: string;
+  organizations: OrgWithRole[];
+  activeOrganizationId: string | null;
+}) {
   return (
     <aside className="flex h-screen w-56 shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
       <div className="flex h-14 items-center border-b border-zinc-200 px-4 text-sm font-semibold dark:border-zinc-800">
         Fábrica
+      </div>
+      <div className="border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Workspace</p>
+        <OrgSwitcher organizations={props.organizations} activeOrganizationId={props.activeOrganizationId} />
       </div>
       <ScrollArea className="flex-1">
         <nav className="flex flex-col gap-1 p-2">
