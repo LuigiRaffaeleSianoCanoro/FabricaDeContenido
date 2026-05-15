@@ -241,15 +241,7 @@ export default function HomePage() {
           </span>
         </Link>
         
-        <Link
-          href="/login"
-          className={cn(
-            buttonVariants({ variant: "ghost", size: "sm" }),
-            "font-medium text-foreground/70 hover:text-foreground"
-          )}
-        >
-          Entrar
-        </Link>
+
       </header>
 
       {/* Main Content - Centered, minimal */}
@@ -265,7 +257,7 @@ export default function HomePage() {
           
           {/* Problem Statement */}
           <h1 className="text-balance text-4xl font-bold leading-[1.05] tracking-tight text-foreground sm:text-5xl lg:text-6xl xl:text-7xl">
-            <span className="text-foreground/80">{"?Cansado de "}</span>
+            <span className="text-foreground/80">{"¿Cansado de "}</span>
             <span className="gradient-text">generar contenido</span>
             <span className="text-foreground/80">?</span>
           </h1>
@@ -297,7 +289,7 @@ export default function HomePage() {
       {/* Minimal Footer */}
       <footer className="relative z-10 flex h-12 shrink-0 items-center justify-center px-6">
         <p className="font-mono text-xs tracking-widest text-foreground/30">
-          HECHO CON IA
+          FABRICA DE CONTENIDO
         </p>
       </footer>
     </div>
