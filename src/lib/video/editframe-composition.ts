@@ -17,8 +17,10 @@ export type BuildSlideshowOptions = {
   audioUrl?: string;
   /** Brand accent color (hex) used for progress + highlights. */
   accent?: string;
-  /** Fallback background image per slide when the plan has no resolved media. */
-  fallbackImageUrls?: string[];
+  /** Background image URL per slide (index-aligned with plan.slides). */
+  fallbackImageUrls?: (string | null | undefined)[];
+  /** Voiceover audio URL per slide (index-aligned with plan.slides). */
+  slideAudioUrls?: (string | null | undefined)[];
 };
 
 const DIMENSIONS: Record<AspectRatio, { width: number; height: number }> = {
@@ -92,7 +94,7 @@ const STYLE_BLOCK = `
 function renderSlide(
   slide: SlideshowPlan["slides"][number],
   index: number,
-  opts: { accent: string; imageUrl?: string },
+  opts: { accent: string; imageUrl?: string | null; audioUrl?: string | null },
 ): string {
   const durationSec = Math.max(2.5, Math.min(15, slide.durationMs / 1000));
   const gradient = GRADIENTS[index % GRADIENTS.length];
@@ -102,6 +104,10 @@ function renderSlide(
 
   const body = slide.body?.trim()
     ? `<div class="ef-body" style="animation: ef-fade-up 0.8s ease-out 0.25s both">${escapeHtml(slide.body)}</div>`
+    : "";
+
+  const audio = opts.audioUrl
+    ? `<ef-audio src="${escapeAttr(opts.audioUrl)}"></ef-audio>`
     : "";
 
   return `
@@ -115,6 +121,7 @@ function renderSlide(
       <div class="ef-progress-track">
         <div class="ef-progress-fill" style="background:${opts.accent}; animation: ef-progress ${durationSec}s linear both"></div>
       </div>
+      ${audio}
     </ef-timegroup>`;
 }
 
@@ -135,6 +142,7 @@ export function buildSlideshowHtml(
       renderSlide(slide, i, {
         accent,
         imageUrl: opts.fallbackImageUrls?.[i] ?? undefined,
+        audioUrl: opts.slideAudioUrls?.[i] ?? undefined,
       }),
     )
     .join("\n");
