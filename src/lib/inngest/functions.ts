@@ -3,13 +3,22 @@ import { inngest } from "@/lib/inngest/client";
 import { prisma } from "@/lib/db/prisma";
 import { createBufferProvider } from "@/lib/publishing/providers/buffer";
 import { dispatchVideoRenderWorkflow, isGitHubRenderConfigured } from "@/lib/video/github-actions";
+import { buildSlideshowHtml, resolveDimensions } from "@/lib/video/editframe-composition";
+import {
+  downloadEditframeRender,
+  getEditframeRenderStatus,
+  startEditframeRender,
+} from "@/lib/video/editframe";
+import { isR2Configured, uploadPublicAsset } from "@/lib/storage/r2";
 import {
   getActiveAiProviderForOrg,
   getBufferAccessTokenForOrg,
+  getEditframeApiKeyForOrg,
   getFirstActiveAiKeyForOrg,
   touchApiKeyUsed,
 } from "@/services/api-keys";
 import { getSkill } from "@/skills/registry";
+import { SlideshowPlanSchema } from "@/skills/slideshow-planner/skill";
 
 /**
  * Placeholder durable function — replace with real orchestration (content → TTS → video → Buffer).
@@ -278,4 +287,245 @@ export const publishToBuffer = inngest.createFunction(
   },
 );
 
-export const inngestFunctions = [healthCheck, contentPipelineV1, publishToBuffer];
+export const slideshowPipelineV1 = inngest.createFunction(
+  {
+    id: "fabrica-slideshow-pipeline-v1",
+    name: "Slideshow pipeline v1 (Editframe)",
+    triggers: [{ event: "content/slideshow.requested" }],
+  },
+  async ({ event, step }) => {
+    const data = event.data as {
+      organizationId: string;
+      contentConfigId?: string;
+      prompt?: string;
+      platform?: string;
+      slideCount?: number;
+      aspectRatio?: string;
+    };
+    const { organizationId } = data;
+
+    const cfg = await step.run("load-config", async () => {
+      if (data.contentConfigId) {
+        const c = await prisma.contentConfig.findFirst({
+          where: { id: data.contentConfigId, organizationId },
+        });
+        if (c) return c;
+      }
+      return prisma.contentConfig.findFirst({
+        where: { organizationId, isDefault: true },
+        orderBy: { updatedAt: "desc" },
+      });
+    });
+
+    const prompt = (data.prompt ?? cfg?.prompt ?? cfg?.topics.join(", ") ?? "").trim();
+    if (!prompt) {
+      throw new Error("No prompt provided and no ContentConfig prompt/topics to fall back to");
+    }
+    const platform = data.platform ?? cfg?.platforms[0] ?? "instagram";
+    const slideCount = data.slideCount ?? cfg?.slideCount ?? 5;
+    const aspectRatio = data.aspectRatio ?? cfg?.aspectRatio ?? "9:16";
+
+    const job = await step.run("create-job", () =>
+      prisma.contentJob.create({
+        data: {
+          organizationId,
+          configId: cfg?.id,
+          status: "RUNNING",
+          type: "VIDEO_RENDER",
+          startedAt: new Date(),
+          input: { prompt, platform, slideCount, aspectRatio },
+        },
+      }),
+    );
+
+    try {
+      const keyInfo = await step.run("resolve-ai-key", () => getFirstActiveAiKeyForOrg(organizationId));
+      if (!keyInfo) {
+        throw new Error("No active AI API key configured for this organization");
+      }
+
+      const skill = getSkill("slideshow-planner");
+      if (!skill) {
+        throw new Error("slideshow-planner skill not registered");
+      }
+
+      const planUnknown = await step.run("run-slideshow-planner", async () => {
+        const ai = await getActiveAiProviderForOrg(organizationId, keyInfo.provider);
+        await touchApiKeyUsed(keyInfo.row.id);
+        return skill.execute(
+          {
+            prompt,
+            platform,
+            tone: cfg?.tone ?? "profesional pero cercano",
+            targetAudience: cfg?.targetAudience ?? "audiencia general",
+            slideCount,
+          },
+          { organizationId, jobId: job.id, ai, log: async () => {} },
+        );
+      });
+
+      const plan = SlideshowPlanSchema.parse(planUnknown);
+
+      await step.run("record-skill-execution", () =>
+        prisma.skillExecution.create({
+          data: {
+            jobId: job.id,
+            skillId: "slideshow-planner",
+            input: { prompt, platform, slideCount },
+            output: plan,
+            completedAt: new Date(),
+          },
+        }),
+      );
+
+      const requireApproval = cfg?.requireApproval ?? true;
+      const gc = await step.run("persist-generated-content", () =>
+        prisma.generatedContent.create({
+          data: {
+            jobId: job.id,
+            organizationId,
+            type: "REEL",
+            platform,
+            title: plan.title,
+            body: plan.caption || plan.title,
+            hashtags: plan.hashtags,
+            status: requireApproval ? "PENDING_APPROVAL" : "APPROVED",
+          },
+        }),
+      );
+
+      const composition = buildSlideshowHtml(plan, { aspectRatio });
+      const dims = resolveDimensions(aspectRatio);
+
+      const editframeKey = await step.run("resolve-editframe-key", () =>
+        getEditframeApiKeyForOrg(organizationId),
+      );
+      if (!editframeKey) {
+        throw new Error("No active Editframe API key configured for this organization");
+      }
+
+      const videoRender = await step.run("create-video-render", () =>
+        prisma.videoRender.create({
+          data: {
+            jobId: job.id,
+            organizationId,
+            status: "RENDERING",
+            compositionId: "Slideshow",
+            aspectRatio,
+            durationSeconds: Math.round(composition.durationMs / 1000),
+            props: { title: plan.title, slides: plan.slides.length },
+          },
+        }),
+      );
+      await step.run("link-render-to-content", () =>
+        prisma.generatedContent.update({
+          where: { id: gc.id },
+          data: { videoRenderId: videoRender.id },
+        }),
+      );
+
+      const renderId = await step.run("start-editframe-render", () =>
+        startEditframeRender({
+          apiKey: editframeKey.token,
+          html: composition.html,
+          width: composition.width,
+          height: composition.height,
+          fps: composition.fps,
+          durationMs: composition.durationMs,
+          metadata: { jobId: job.id, organizationId },
+        }),
+      );
+      await step.run("touch-editframe-key", () => touchApiKeyUsed(editframeKey.keyId));
+
+      let completed = false;
+      for (let i = 0; i < 60 && !completed; i += 1) {
+        await step.sleep(`render-poll-wait-${i}`, "5s");
+        const poll = await step.run(`render-poll-${i}`, () =>
+          getEditframeRenderStatus(editframeKey.token, renderId),
+        );
+        if (poll.status === "complete") {
+          completed = true;
+        } else if (poll.status === "failed") {
+          throw new Error(poll.error ?? "Editframe render failed");
+        }
+      }
+      if (!completed) {
+        throw new Error("Editframe render did not complete in time");
+      }
+
+      const outputUrl = await step.run("store-output", async () => {
+        const { buffer, contentType } = await downloadEditframeRender(editframeKey.token, renderId);
+        if (isR2Configured()) {
+          const { publicUrl } = await uploadPublicAsset(
+            `slideshows/${organizationId}/${videoRender.id}.mp4`,
+            buffer,
+            contentType,
+          );
+          return publicUrl ?? null;
+        }
+        return null;
+      });
+
+      await step.run("finalize-render", () =>
+        prisma.videoRender.update({
+          where: { id: videoRender.id },
+          data: {
+            status: "SUCCEEDED",
+            outputUrl,
+            assetUrls: { editframeRenderId: renderId },
+          },
+        }),
+      );
+      if (outputUrl) {
+        await step.run("set-content-video-url", () =>
+          prisma.generatedContent.update({
+            where: { id: gc.id },
+            data: { videoUrl: outputUrl, thumbnailUrl: outputUrl },
+          }),
+        );
+      }
+
+      await step.run("finalize-job", () =>
+        prisma.contentJob.update({
+          where: { id: job.id },
+          data: {
+            status: "SUCCEEDED",
+            completedAt: new Date(),
+            progress: 1,
+            output: { title: plan.title, slides: plan.slides.length, outputUrl, dims },
+          },
+        }),
+      );
+
+      if (cfg?.autoPost && !requireApproval && outputUrl) {
+        await step.run("enqueue-auto-publish", () =>
+          inngest.send({
+            name: "content/publish.requested",
+            data: { organizationId, generatedContentId: gc.id },
+          }),
+        );
+      }
+
+      return { ok: true, jobId: job.id, renderId, outputUrl };
+    } catch (err) {
+      await step.run("mark-job-failed", () =>
+        prisma.contentJob.update({
+          where: { id: job.id },
+          data: {
+            status: "FAILED",
+            failedAt: new Date(),
+            errorMessage: err instanceof Error ? err.message : String(err),
+          },
+        }),
+      );
+      throw err;
+    }
+  },
+);
+
+export const inngestFunctions = [
+  healthCheck,
+  contentPipelineV1,
+  publishToBuffer,
+  slideshowPipelineV1,
+];
