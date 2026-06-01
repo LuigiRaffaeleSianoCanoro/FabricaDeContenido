@@ -81,3 +81,20 @@ export async function getBufferAccessTokenForOrg(organizationId: string) {
   );
   return { token: secret, keyId: row.id };
 }
+
+export async function getEditframeApiKeyForOrg(organizationId: string) {
+  const row = await prisma.encryptedApiKey.findFirst({
+    where: { organizationId, provider: "EDITFRAME", isActive: true, revokedAt: null },
+  });
+  if (!row) return null;
+  const env = getServerEnv();
+  const secret = decryptSecret(
+    {
+      ciphertext: row.encryptedPayload,
+      iv: row.iv,
+      authTag: row.authTag,
+    },
+    env.ENCRYPTION_MASTER_KEY,
+  );
+  return { token: secret, keyId: row.id };
+}
