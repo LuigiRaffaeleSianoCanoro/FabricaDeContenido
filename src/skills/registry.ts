@@ -1,8 +1,9 @@
 import { hookGeneratorSkill } from "./hook-generator/skill";
+import { slideshowPlannerSkill } from "./slideshow-planner/skill";
 
 import type { SkillDefinition } from "./types";
 
-const skills: SkillDefinition[] = [hookGeneratorSkill];
+const skills: SkillDefinition[] = [hookGeneratorSkill, slideshowPlannerSkill];
 
 const byId = new Map(skills.map((s) => [s.id, s]));
 
