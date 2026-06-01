@@ -1,81 +1,125 @@
 import type {
-  PublishNowParams,
-  PublishedUpdate,
-  PublishingProvider,
-  SchedulePostParams,
+  BufferAccount,
+  BufferChannel,
+  BufferPostResult,
+  BufferPublishingProvider,
+  CreateBufferPostParams,
 } from "../types";
 
-const BUFFER_API = "https://api.bufferapp.com/1";
+const BUFFER_GRAPHQL = "https://api.buffer.com";
 
-async function bufferFetch(
-  path: string,
-  accessToken: string,
-  init?: RequestInit,
-): Promise<unknown> {
-  const url = new URL(`${BUFFER_API}${path}`);
-  url.searchParams.set("access_token", accessToken);
-  const res = await fetch(url.toString(), {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
+type GraphQLResponse<T> = {
+  data?: T;
+  errors?: { message: string }[];
+};
+
+async function bufferGraphQL<T>(
+  apiKey: string,
+  query: string,
+  variables?: Record<string, unknown>,
+): Promise<T> {
+  const res = await fetch(BUFFER_GRAPHQL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ query, ...(variables ? { variables } : {}) }),
   });
+
   if (!res.ok) {
     throw new Error(`Buffer API ${res.status}: ${await res.text()}`);
   }
-  return res.json();
+
+  const json = (await res.json()) as GraphQLResponse<T>;
+  if (json.errors?.length) {
+    throw new Error(`Buffer GraphQL error: ${json.errors.map((e) => e.message).join("; ")}`);
+  }
+  if (!json.data) {
+    throw new Error("Buffer GraphQL: empty response");
+  }
+  return json.data;
 }
 
-export class BufferPublishingProvider implements PublishingProvider {
-  readonly providerId = "buffer";
+export class BufferGraphQLProvider implements BufferPublishingProvider {
+  readonly providerId = "buffer" as const;
 
-  async schedulePost(
-    params: SchedulePostParams,
-    accessToken: string,
-  ): Promise<PublishedUpdate> {
-    const body: Record<string, unknown> = {
-      text: params.text,
-      profile_ids: params.profileIds,
-      scheduled_at: Math.floor(params.scheduledAt.getTime() / 1000),
+  async getAccount(apiKey: string): Promise<BufferAccount> {
+    const data = await bufferGraphQL<{
+      account: {
+        id: string;
+        email?: string;
+        name?: string;
+        organizations?: { id: string; name: string }[];
+      };
+    }>(
+      apiKey,
+      `query { account { id email name organizations { id name } } }`,
+    );
+    return {
+      id: data.account.id,
+      email: data.account.email,
+      name: data.account.name,
+      organizations: data.account.organizations ?? [],
     };
-    if (params.mediaUrls?.length) {
-      body.media = { photo: params.mediaUrls[0] };
-    }
-    const data = (await bufferFetch("/updates/create.json", accessToken, {
-      method: "POST",
-      body: JSON.stringify(body),
-    })) as { success: boolean; id?: string; message?: string };
-
-    if (!data.success || !data.id) {
-      throw new Error(data.message ?? "Buffer schedule failed");
-    }
-
-    return { id: data.id, provider: "buffer", raw: data };
   }
 
-  async publishPost(
-    params: PublishNowParams,
-    accessToken: string,
-  ): Promise<PublishedUpdate> {
-    const body: Record<string, unknown> = {
+  async listChannels(apiKey: string, organizationId: string): Promise<BufferChannel[]> {
+    const data = await bufferGraphQL<{
+      channels: { id: string; name: string; service: string; avatar?: string }[];
+    }>(
+      apiKey,
+      `query Channels($organizationId: String!) {
+        channels(input: { organizationId: $organizationId }) {
+          id
+          name
+          service
+          avatar
+        }
+      }`,
+      { organizationId },
+    );
+    return data.channels ?? [];
+  }
+
+  async createPost(apiKey: string, params: CreateBufferPostParams): Promise<BufferPostResult> {
+    const input: Record<string, unknown> = {
+      channelId: params.channelId,
       text: params.text,
-      profile_ids: params.profileIds,
-      now: true,
+      schedulingType: "automatic",
+      mode: params.publishNow ? "now" : "addToQueue",
+      assets: params.assets ?? [],
     };
-    if (params.mediaUrls?.length) {
-      body.media = { photo: params.mediaUrls[0] };
-    }
-    const data = (await bufferFetch("/updates/create.json", accessToken, {
-      method: "POST",
-      body: JSON.stringify(body),
-    })) as { success: boolean; id?: string; message?: string };
-
-    if (!data.success || !data.id) {
-      throw new Error(data.message ?? "Buffer publish failed");
+    if (params.scheduledAt && !params.publishNow) {
+      input.dueAt = params.scheduledAt.toISOString();
     }
 
-    return { id: data.id, provider: "buffer", raw: data };
+    const data = await bufferGraphQL<{
+      createPost: {
+        __typename: string;
+        post?: { id: string };
+        message?: string;
+      };
+    }>(
+      apiKey,
+      `mutation CreatePost($input: CreatePostInput!) {
+        createPost(input: $input) {
+          __typename
+          ... on PostActionSuccess { post { id text status } }
+          ... on MutationError { message }
+        }
+      }`,
+      { input },
+    );
+
+    const result = data.createPost;
+    if (!result.post?.id) {
+      throw new Error(result.message ?? "Buffer createPost failed");
+    }
+    return { id: result.post.id, raw: result };
   }
 }
 
-export function createBufferProvider(): PublishingProvider {
-  return new BufferPublishingProvider();
+export function createBufferProvider(): BufferPublishingProvider {
+  return new BufferGraphQLProvider();
 }
