@@ -9,12 +9,15 @@ import {
   getEditframeRenderStatus,
   startEditframeRender,
 } from "@/lib/video/editframe";
+import { generateImageWithOpenAI, searchPexelsImageUrl } from "@/lib/media/images";
+import { synthesizeVoice, DEFAULT_VOICE } from "@/lib/tts/synthesize";
 import { isR2Configured, uploadPublicAsset } from "@/lib/storage/r2";
 import {
   getActiveAiProviderForOrg,
   getBufferAccessTokenForOrg,
   getEditframeApiKeyForOrg,
   getFirstActiveAiKeyForOrg,
+  getRawApiKeyForOrg,
   touchApiKeyUsed,
 } from "@/services/api-keys";
 import { getSkill } from "@/skills/registry";
@@ -301,6 +304,9 @@ export const slideshowPipelineV1 = inngest.createFunction(
       platform?: string;
       slideCount?: number;
       aspectRatio?: string;
+      imageSource?: string;
+      voiceover?: boolean;
+      voiceName?: string;
     };
     const { organizationId } = data;
 
@@ -324,6 +330,9 @@ export const slideshowPipelineV1 = inngest.createFunction(
     const platform = data.platform ?? cfg?.platforms[0] ?? "instagram";
     const slideCount = data.slideCount ?? cfg?.slideCount ?? 5;
     const aspectRatio = data.aspectRatio ?? cfg?.aspectRatio ?? "9:16";
+    const imageSource = data.imageSource ?? cfg?.imageSource ?? "none";
+    const voiceover = data.voiceover ?? cfg?.voiceover ?? false;
+    const voiceName = data.voiceName ?? cfg?.voiceName ?? DEFAULT_VOICE;
 
     const job = await step.run("create-job", () =>
       prisma.contentJob.create({
@@ -333,7 +342,7 @@ export const slideshowPipelineV1 = inngest.createFunction(
           status: "RUNNING",
           type: "VIDEO_RENDER",
           startedAt: new Date(),
-          input: { prompt, platform, slideCount, aspectRatio },
+          input: { prompt, platform, slideCount, aspectRatio, imageSource, voiceover },
         },
       }),
     );
@@ -394,8 +403,102 @@ export const slideshowPipelineV1 = inngest.createFunction(
         }),
       );
 
-      const composition = buildSlideshowHtml(plan, { aspectRatio });
-      const dims = resolveDimensions(aspectRatio);
+      const ratio = resolveDimensions(aspectRatio).ratio;
+
+      // --- Source background images (optional) ---
+      const imageUrls = await step.run("source-images", async (): Promise<(string | null)[]> => {
+        if (imageSource === "pexels") {
+          const key = getServerEnv().PEXELS_API_KEY;
+          if (!key) return [];
+          const out: (string | null)[] = [];
+          for (const s of plan.slides) {
+            try {
+              out.push(await searchPexelsImageUrl(key, s.imagePrompt || s.heading, ratio));
+            } catch {
+              out.push(null);
+            }
+          }
+          return out;
+        }
+        if (imageSource === "ai") {
+          if (!isR2Configured()) return [];
+          const openai = await getRawApiKeyForOrg(organizationId, "OPENAI");
+          if (!openai) return [];
+          const out: (string | null)[] = [];
+          let idx = 0;
+          for (const s of plan.slides) {
+            try {
+              const img = await generateImageWithOpenAI(openai.token, s.imagePrompt || s.heading, ratio);
+              if (img) {
+                const { publicUrl } = await uploadPublicAsset(
+                  `slideshows/${organizationId}/${job.id}-img-${idx}.png`,
+                  img.buffer,
+                  img.contentType,
+                );
+                out.push(publicUrl ?? null);
+              } else {
+                out.push(null);
+              }
+            } catch {
+              out.push(null);
+            }
+            idx += 1;
+          }
+          return out;
+        }
+        return [];
+      });
+
+      // --- Synthesize per-slide voiceover (optional, requires R2) ---
+      let slideAudioUrls: (string | null)[] = [];
+      if (voiceover && isR2Configured()) {
+        const voiceData = await step.run("synthesize-voice", async () => {
+          const urls: (string | null)[] = [];
+          const durations: number[] = [];
+          let idx = 0;
+          for (const s of plan.slides) {
+            const text = s.voiceover || s.body || s.heading;
+            try {
+              const clip = await synthesizeVoice(text, voiceName);
+              const { publicUrl } = await uploadPublicAsset(
+                `slideshows/${organizationId}/${job.id}-audio-${idx}.mp3`,
+                clip.audio,
+                clip.mimeType,
+              );
+              urls.push(publicUrl ?? null);
+              durations.push(clip.durationMs);
+            } catch {
+              urls.push(null);
+              durations.push(0);
+            }
+            idx += 1;
+          }
+          return { urls, durations };
+        });
+        slideAudioUrls = voiceData.urls;
+        plan.slides.forEach((s, i) => {
+          const d = voiceData.durations[i];
+          if (d && d > 0) {
+            s.durationMs = Math.max(2500, Math.min(15000, d + 700));
+          }
+        });
+      }
+
+      const cleanImageUrls = imageUrls.filter((u): u is string => Boolean(u));
+      if (cleanImageUrls.length > 0) {
+        await step.run("save-media-urls", () =>
+          prisma.generatedContent.update({
+            where: { id: gc.id },
+            data: { mediaUrls: cleanImageUrls },
+          }),
+        );
+      }
+
+      const composition = buildSlideshowHtml(plan, {
+        aspectRatio,
+        fallbackImageUrls: imageUrls,
+        slideAudioUrls,
+      });
 
       const editframeKey = await step.run("resolve-editframe-key", () =>
         getEditframeApiKeyForOrg(organizationId),
@@ -413,7 +516,12 @@ export const slideshowPipelineV1 = inngest.createFunction(
             compositionId: "Slideshow",
             aspectRatio,
             durationSeconds: Math.round(composition.durationMs / 1000),
-            props: { title: plan.title, slides: plan.slides.length },
+            props: {
+              title: plan.title,
+              slides: plan.slides.length,
+              imageSource,
+              voiceover,
+            },
           },
         }),
       );
@@ -492,7 +600,7 @@ export const slideshowPipelineV1 = inngest.createFunction(
             status: "SUCCEEDED",
             completedAt: new Date(),
             progress: 1,
-            output: { title: plan.title, slides: plan.slides.length, outputUrl, dims },
+            output: { title: plan.title, slides: plan.slides.length, outputUrl },
           },
         }),
       );
