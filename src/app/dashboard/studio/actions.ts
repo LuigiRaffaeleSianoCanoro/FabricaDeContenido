@@ -17,6 +17,9 @@ export type StudioPlanState = {
   platform?: string;
   slideCount?: number;
   aspectRatio?: string;
+  imageSource?: string;
+  voiceover?: boolean;
+  voiceName?: string;
 };
 
 export async function generateSlideshowPlan(
@@ -29,19 +32,24 @@ export async function generateSlideshowPlan(
   const platform = String(formData.get("platform") ?? "instagram").trim();
   const slideCount = Number(formData.get("slideCount") ?? 5);
   const aspectRatio = String(formData.get("aspectRatio") ?? "9:16").trim();
+  const imageSource = String(formData.get("imageSource") ?? "none").trim();
+  const voiceover = formData.has("voiceover");
+  const voiceName = String(formData.get("voiceName") ?? "").trim();
+
+  const passthrough = { prompt, platform, slideCount, aspectRatio, imageSource, voiceover, voiceName };
 
   if (!organizationId) return { error: "Organización no válida." };
-  if (prompt.length < 3) return { error: "Escribe un prompt más descriptivo." };
+  if (prompt.length < 3) return { error: "Escribe un prompt más descriptivo.", ...passthrough };
 
   await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN", "MEMBER"]);
 
   const keyInfo = await getFirstActiveAiKeyForOrg(organizationId);
   if (!keyInfo) {
-    return { error: "No hay una API key de IA activa. Añádela en Ajustes." };
+    return { error: "No hay una API key de IA activa. Añádela en Ajustes.", ...passthrough };
   }
 
   const skill = getSkill("slideshow-planner");
-  if (!skill) return { error: "Skill slideshow-planner no registrado." };
+  if (!skill) return { error: "Skill slideshow-planner no registrado.", ...passthrough };
 
   try {
     const ai = await getActiveAiProviderForOrg(organizationId, keyInfo.provider);
@@ -51,9 +59,9 @@ export async function generateSlideshowPlan(
       { organizationId, jobId: "preview", ai, log: async () => {} },
     );
     const plan = SlideshowPlanSchema.parse(planUnknown);
-    return { ok: true, plan, prompt, platform, slideCount, aspectRatio };
+    return { ok: true, plan, ...passthrough };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "No se pudo generar el guion." };
+    return { error: err instanceof Error ? err.message : "No se pudo generar el guion.", ...passthrough };
   }
 }
 
@@ -64,6 +72,9 @@ export async function requestSlideshowRender(formData: FormData) {
   const platform = String(formData.get("platform") ?? "instagram").trim();
   const slideCount = Number(formData.get("slideCount") ?? 5);
   const aspectRatio = String(formData.get("aspectRatio") ?? "9:16").trim();
+  const imageSource = String(formData.get("imageSource") ?? "none").trim();
+  const voiceover = formData.get("voiceover") === "true";
+  const voiceName = String(formData.get("voiceName") ?? "").trim() || undefined;
 
   if (!organizationId || prompt.length < 3) throw new Error("Datos inválidos");
 
@@ -71,7 +82,7 @@ export async function requestSlideshowRender(formData: FormData) {
 
   await inngest.send({
     name: "content/slideshow.requested",
-    data: { organizationId, prompt, platform, slideCount, aspectRatio },
+    data: { organizationId, prompt, platform, slideCount, aspectRatio, imageSource, voiceover, voiceName },
   });
 
   revalidatePath("/dashboard/studio");

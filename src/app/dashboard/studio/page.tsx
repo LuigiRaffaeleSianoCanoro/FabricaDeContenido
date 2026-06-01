@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
 import { requireSession } from "@/lib/auth/require-session";
 import { prisma } from "@/lib/db/prisma";
+import { isR2Configured } from "@/lib/storage/r2";
 
 import { StudioClient } from "./studio-client";
 
@@ -22,6 +23,9 @@ export default async function StudioPage() {
     providers.has(p as never),
   );
   const hasEditframeKey = providers.has("EDITFRAME");
+  const hasOpenAiKey = providers.has("OPENAI");
+  const hasPexels = Boolean(process.env.PEXELS_API_KEY);
+  const hasR2 = isR2Configured();
 
   const renders = await prisma.videoRender.findMany({
     where: { organizationId: org.id, compositionId: "Slideshow" },
@@ -52,6 +56,9 @@ export default async function StudioPage() {
           organizationId={org.id}
           hasAiKey={hasAiKey}
           hasEditframeKey={hasEditframeKey}
+          hasOpenAiKey={hasOpenAiKey}
+          hasPexels={hasPexels}
+          hasR2={hasR2}
         />
 
         <div className="glass animate-scale-in rounded-2xl p-6">

@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { EDGE_VOICES, DEFAULT_VOICE } from "@/lib/tts/voices";
 
 import {
   type StudioPlanState,
@@ -18,9 +19,19 @@ type Props = {
   organizationId: string;
   hasAiKey: boolean;
   hasEditframeKey: boolean;
+  hasOpenAiKey: boolean;
+  hasPexels: boolean;
+  hasR2: boolean;
 };
 
-export function StudioClient({ organizationId, hasAiKey, hasEditframeKey }: Props) {
+export function StudioClient({
+  organizationId,
+  hasAiKey,
+  hasEditframeKey,
+  hasOpenAiKey,
+  hasPexels,
+  hasR2,
+}: Props) {
   const [state, action, pending] = useActionState(generateSlideshowPlan, initial);
 
   return (
@@ -90,6 +101,53 @@ export function StudioClient({ organizationId, hasAiKey, hasEditframeKey }: Prop
               </select>
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="imageSource">Imágenes de fondo</Label>
+              <select
+                id="imageSource"
+                name="imageSource"
+                defaultValue={state.imageSource ?? "none"}
+                className="flex h-10 w-full rounded-md border border-input bg-background/50 px-3 text-sm"
+              >
+                <option value="none">Gradientes (sin imágenes)</option>
+                <option value="pexels" disabled={!hasPexels}>
+                  Stock Pexels{hasPexels ? "" : " (no configurado)"}
+                </option>
+                <option value="ai" disabled={!hasOpenAiKey || !hasR2}>
+                  IA (OpenAI){hasOpenAiKey && hasR2 ? "" : " (requiere OpenAI + R2)"}
+                </option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="voiceName">Voz (Edge TTS)</Label>
+              <select
+                id="voiceName"
+                name="voiceName"
+                defaultValue={state.voiceName || DEFAULT_VOICE}
+                className="flex h-10 w-full rounded-md border border-input bg-background/50 px-3 text-sm"
+              >
+                {EDGE_VOICES.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="voiceover"
+              defaultChecked={state.voiceover ?? false}
+              disabled={!hasR2}
+              className="rounded"
+            />
+            Añadir voz en off {hasR2 ? "" : "(requiere R2)"}
+          </label>
+
           {state.error && <p className="text-sm text-destructive">{state.error}</p>}
           <Button type="submit" disabled={pending || !hasAiKey} className="orange-glow bg-primary">
             {pending ? "Generando guion…" : "Generar guion"}
@@ -126,6 +184,9 @@ export function StudioClient({ organizationId, hasAiKey, hasEditframeKey }: Prop
                   {slide.body && (
                     <p className="mt-1 text-xs text-muted-foreground">{slide.body}</p>
                   )}
+                  {slide.voiceover && (
+                    <p className="mt-1 text-xs italic text-muted-foreground/80">🎙 {slide.voiceover}</p>
+                  )}
                 </li>
               ))}
             </ol>
@@ -148,6 +209,9 @@ export function StudioClient({ organizationId, hasAiKey, hasEditframeKey }: Prop
               <input type="hidden" name="platform" value={state.platform ?? "instagram"} />
               <input type="hidden" name="slideCount" value={state.slideCount ?? 5} />
               <input type="hidden" name="aspectRatio" value={state.aspectRatio ?? "9:16"} />
+              <input type="hidden" name="imageSource" value={state.imageSource ?? "none"} />
+              <input type="hidden" name="voiceover" value={state.voiceover ? "true" : "false"} />
+              <input type="hidden" name="voiceName" value={state.voiceName || DEFAULT_VOICE} />
               <Button type="submit" disabled={!hasEditframeKey} className="bg-primary">
                 Renderizar con Editframe
               </Button>
