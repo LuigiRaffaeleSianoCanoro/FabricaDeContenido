@@ -11,8 +11,12 @@ No estima días/semanas: describe componentes, archivos a tocar, dependencias y 
 
 > **Decisión de motor de video: Editframe (no Remotion).** El render de los slideshows se hace en
 > la **nube de Editframe** vía `@editframe/api`, con composiciones en **HTML + web components
-> `ef-*`**. Esto encaja con BYOK (cada usuario trae su propia API key de Editframe) y **elimina la
-> necesidad de GitHub Actions** para renderizar.
+> `ef-*`**. BYOK; **elimina la necesidad de GitHub Actions** para renderizar.
+>
+> **Decisión de publicación: Buffer API GraphQL (BYOK), no OAuth.** La API pública de Buffer migró
+> a **GraphQL** (`https://api.buffer.com`) con **API key por usuario** (Bearer). El propio Buffer
+> indica que *"OAuth para apps de terceros está por llegar"*, así que usamos **BYOK**: cada usuario
+> pega su API key de Buffer y luego **sincroniza sus canales**.
 
 ---
 
@@ -20,59 +24,48 @@ No estima días/semanas: describe componentes, archivos a tocar, dependencias y 
 
 Una "fábrica de contenido" donde el usuario:
 
-1. **Se registra** (ya soportado con Clerk).
-2. **Trae sus propias llaves** (BYOK): API key de un proveedor de IA (OpenAI/Anthropic/Gemini/OpenRouter),
-   API key de **Editframe** (render de video) y conexión con **Buffer** para publicar.
-3. **Promptea**: escribe en lenguaje natural qué tipo de contenido quiere ("slideshows educativos
-   sobre finanzas personales, tono cercano, 3 por semana para Instagram y TikTok").
-4. **Obtiene slideshows animados** (video vertical 9:16 con varias diapositivas, texto animado,
-   imágenes y voz en off) renderizados en la nube de Editframe.
+1. **Se registra** (Clerk).
+2. **Trae sus propias llaves** (BYOK): IA (OpenAI/Anthropic/Gemini/OpenRouter), **Editframe**
+   (render de video) y **Buffer** (publicar).
+3. **Promptea** qué quiere en lenguaje natural.
+4. **Obtiene slideshows animados** (texto animado + imágenes + voz en off) renderizados en Editframe.
 5. **Agenda la publicación** en sus redes vía Buffer, con aprobación opcional.
-6. **Automatiza**: define la frecuencia una vez y el sistema sigue creando + publicando solo,
-   de forma recurrente, sin que el usuario tenga que volver a promptear.
+6. **Automatiza**: define la frecuencia una vez y el sistema crea + publica solo, recurrentemente.
 
 ---
 
 ## 2. Estado actual (lo que YA existe)
 
-Cimientos sólidos ya implementados:
-
-- **App / stack**: Next.js 16 (App Router), TS estricto, Tailwind 4, shadcn.
-- **Auth**: Clerk con middleware y rutas `/login`, `/sign-up`.
-- **DB multi-tenant**: Prisma + Postgres (`prisma/schema.prisma`).
-- **BYOK seguro**: cifrado AES-256-GCM; `EncryptedApiKey` por org (`src/services/api-keys.ts`).
-- **Adaptadores de IA**: OpenAI, Anthropic, Gemini, OpenRouter (`src/lib/ai/`).
-- **TTS gratuito**: `edge-tts-universal` (`src/lib/tts/`).
-- **Publicación Buffer**: provider (`src/lib/publishing/providers/buffer.ts`).
-- **Orquestación**: Inngest (`src/lib/inngest/functions.ts`).
-- **Skills**: registro + ejecutor con Zod (`src/skills/`).
+- **App / stack**: Next.js 16, TS estricto, Tailwind 4, shadcn.
+- **Auth**: Clerk; **DB multi-tenant**: Prisma + Postgres.
+- **BYOK seguro**: AES-256-GCM; `EncryptedApiKey` por org.
+- **IA**: OpenAI/Anthropic/Gemini/OpenRouter. **TTS**: Edge. **Orquestación**: Inngest. **Skills**: Zod.
 - **Dashboard**: onboarding, studio, contenido, calendario, jobs, settings, admin, RBAC.
 
 ### Fase 1 — IMPLEMENTADA (núcleo de slideshow con Editframe)
 
-- **Skill `slideshow-planner`**: prompt → guion `{ title, slides[], caption, hashtags[] }`.
-- **Composición** `buildSlideshowHtml()` (`src/lib/video/editframe-composition.ts`): HTML con
-  `ef-*` + animaciones; dimensiones por `aspectRatio`.
-- **Servicio de render Editframe** (`src/lib/video/editframe.ts`, BYOK).
-- **Pipeline durable** `slideshowPipelineV1` (`content/slideshow.requested`): planner → HTML →
-  render → R2 → `VideoRender`/`GeneratedContent`.
-- **BYOK Editframe** (`EDITFRAME`), alta de clave en Onboarding/Ajustes.
-- **Studio** (`src/app/dashboard/studio/`): prompt → preview del guion → render.
+- Skill `slideshow-planner`; `buildSlideshowHtml()`; servicio de render Editframe (BYOK);
+  pipeline `slideshowPipelineV1`; BYOK `EDITFRAME`; Studio (prompt → preview → render).
 
 ### Fase 2 — IMPLEMENTADA (voz + imágenes)
 
-- **Voz en off (Edge TTS)** (`src/lib/tts/synthesize.ts`): `synthesizeVoice()` calcula la duración
-  real desde los *word boundaries*; el pipeline genera **un clip por slide**, lo sube a R2 y **ajusta
-  la duración de cada slide** a su narración. La composición inserta un `<ef-audio>` por slide.
-- **Imágenes** (`src/lib/media/images.ts`):
-  - **IA**: `generateImageWithOpenAI()` (gpt-image-1) con la **OpenAI key del propio tenant**;
-    la imagen se sube a R2 y se usa como fondo del slide.
-  - **Stock**: `searchPexelsImageUrl()` (Pexels, key de plataforma opcional `PEXELS_API_KEY`).
-  - Las URLs se guardan en `GeneratedContent.mediaUrls` y se pasan como fondos a la composición.
-- **Datos**: `ContentConfig` + `voiceover`, `voiceName` (y `imageSource` de Fase 1).
-- **Studio**: selección de **fuente de imágenes**, **voz** (catálogo Edge) y toggle de **voz en off**;
-  se propagan al evento de render.
-- **Voces** reutilizables en cliente (`src/lib/tts/voices.ts`).
+- Voz Edge TTS por slide con duración real (`src/lib/tts/synthesize.ts`).
+- Imágenes IA (OpenAI gpt-image-1) y stock (Pexels) (`src/lib/media/images.ts`).
+- `ContentConfig` + `voiceover`, `voiceName`; controles en Studio.
+
+### Fase 3 — IMPLEMENTADA (publicación con Buffer GraphQL)
+
+- **Provider Buffer GraphQL** (`src/lib/publishing/providers/buffer.ts`): `getAccount`,
+  `listChannels`, `createPost` (texto + **video** vía `assets:[{video:{url}}]` + `dueAt`),
+  con manejo de errores tipados.
+- **Sync de canales** (`src/lib/publishing/sync.ts`): `account → organizations → channels` →
+  upsert en `SocialAccount` (platform `buffer`, `bufferId`=channelId); desactiva los que ya no existen.
+- **Agenda real** (`src/lib/publishing/schedule.ts`): `computeNextScheduledAt()` calcula el próximo
+  horario desde `ContentConfig.postingSchedule` (`["09:00", ...]` o `[{dayOfWeek,hour,minute}]`).
+- **`publishToBuffer`** reescrito: publica **un post por canal**, adjunta el **MP4** (o imagen),
+  programa con `dueAt`, registra `ScheduledPost` por canal y actualiza el estado del contenido.
+- **Settings**: botón **"Sincronizar canales de Buffer"** + listado de canales conectados.
+- **Onboarding/Ajustes**: la clave de Buffer ahora es la **API key** (Buffer → Settings → API).
 
 ---
 
@@ -83,13 +76,13 @@ Cimientos sólidos ya implementados:
 | G1 | Render real de slideshow animado | **Resuelto** (Editframe, Fase 1) | — |
 | G2 | "prompt → guion de slides" | **Resuelto** (`slideshow-planner`, Fase 1) | — |
 | G3 | Imágenes para las diapositivas | **Resuelto** (OpenAI / Pexels, Fase 2) | — |
-| G4 | TTS integrado al pipeline (voz en off) | **Resuelto** (Edge TTS por slide, Fase 2) | — |
+| G4 | TTS integrado (voz en off) | **Resuelto** (Edge TTS por slide, Fase 2) | — |
+| G6 | Buffer self-serve + API vigente + video | **Resuelto** (GraphQL BYOK + video, Fase 3) | — |
+| G10 | Sync de canales de Buffer | **Resuelto** (Fase 3) | — |
 | G5 | Automatización recurrente (cron) | Pendiente (Fase 4) | Bloqueante para "fábrica automática" |
-| G6 | Buffer self-serve (OAuth) + API vigente + video | Pendiente (Fase 3) | Alto |
 | G7 | Onboarding "por prompt" | Parcial (Studio ya promptea) | Medio |
 | G8 | Billing/planes y cuotas | Pendiente (Fase 6) | Medio |
-| G9 | Preview animado en vivo dentro de la app | Parcial (preview de guion; falta `@editframe/elements`) | Medio |
-| G10 | Sync automático de perfiles de Buffer | Pendiente (Fase 3) | Medio |
+| G9 | Preview animado en vivo (`@editframe/elements`) | Parcial (preview de guion) | Medio |
 
 ---
 
@@ -99,27 +92,26 @@ Cimientos sólidos ya implementados:
 flowchart TB
   subgraph user [Usuario self-serve]
     Prompt[Prompt + preferencias]
-    Connect[Conectar IA key + Editframe key + Buffer]
-    Review[Revisar/Preview/Aprobar]
+    Connect[IA key + Editframe key + Buffer API key]
+    Review[Revisar/Aprobar]
   end
   subgraph app [Next.js]
-    Studio[Studio: prompt -> preview -> render]
+    Studio[Studio]
     API[server actions / API]
   end
   subgraph orch [Inngest]
-    Cron[Cron recurrente por ContentConfig]
+    Cron[Cron recurrente]
     Pipe[slideshowPipelineV1]
+    Pub[publishToBuffer]
   end
   subgraph assets [Assets BYOK]
     Plan2[slideshow-planner]
-    Img[OpenAI images / Pexels]
+    Img[OpenAI / Pexels]
     TTS[Edge TTS]
   end
-  subgraph render [Render]
-    EF[Editframe cloud render]
-    R2[(R2: MP4 / imágenes / audio)]
-  end
-  Buffer[(Buffer API)]
+  EF[Editframe cloud render]
+  R2[(R2: MP4 / imágenes / audio)]
+  Buffer[(Buffer GraphQL)]
   Prompt --> Studio --> API --> Pipe
   Connect --> API
   Cron --> Pipe
@@ -127,38 +119,34 @@ flowchart TB
   Pipe --> Img --> R2
   Pipe --> TTS --> R2
   Pipe --> EF --> R2
-  Pipe --> Buffer
-  Review --> Buffer
+  Pipe --> Pub --> Buffer
+  Review --> Pub
 ```
 
-Principios: BYOK por org (IA, Editframe, imágenes y publicación con llaves del usuario);
-durabilidad con `step.run`/`step.sleep` de Inngest; estado en `ContentJob`/`VideoRender`/`ScheduledPost`.
+Principios: BYOK por org; durabilidad con `step.run`/`step.sleep`; estado en
+`ContentJob`/`VideoRender`/`ScheduledPost`/`SocialAccount`.
 
 ---
 
 ## 5. Roadmap por fases
 
-Las fases 1–4 forman el **MVP**. Fases 1 y 2 ya están implementadas.
+Fases 1–4 = MVP. Fases 1, 2 y 3 ya están implementadas.
 
 ### Fase 1 — Núcleo de slideshow (Editframe) ✅
 ### Fase 2 — Voz + imágenes ✅
+### Fase 3 — Publicación con Buffer (GraphQL, BYOK) ✅
 
-Pendientes menores de pulido (post-Fase 2):
-- Preview **animado en vivo** en la app con `@editframe/elements` (hoy se muestra el guion).
-- Música de fondo opcional y mezcla con la voz; subtítulos quemados desde los word boundaries.
-- Caché/deduplicación de imágenes y audio por `(prompt, voz)` para ahorrar costo.
-
-### Fase 3 — Conexión Buffer self-serve y publicación (G6, G10)
-
-1. **Buffer OAuth** (`src/app/api/oauth/buffer/...`) con token cifrado; **sync de perfiles** hacia
-   `SocialAccount`. Revisar host/endpoint vigente de Buffer y soporte de **video** según plan.
-2. **Publicar el MP4** (R2) como media en `publishToBuffer`.
-3. **Agenda real**: usar `ContentConfig.postingSchedule` para `scheduledFor`.
+Pendientes menores de pulido:
+- Preview **animado en vivo** con `@editframe/elements`.
+- Timezone real en la agenda (hoy se calcula en UTC; el campo `timezone` llega en Fase 4).
+- Selección de **canales por contenido** desde la UI (hoy publica a todos los canales activos).
+- Verificación de límites de Buffer por red/plan (tamaño y formato de video).
 
 ### Fase 4 — Automatización recurrente (G5) — "setear y olvidar"
 
 1. **Función Inngest con cron** que dispara `content/slideshow.requested` según `postsPerDay` +
-   `postingSchedule` + timezone, leyendo `imageSource`/`voiceover`/`voiceName` de `ContentConfig`.
+   `postingSchedule` + `timezone`, leyendo `imageSource`/`voiceover`/`voiceName` de `ContentConfig`.
+   El render ya enlaza con `publishToBuffer` cuando `autoPost` está activo.
 2. **Anti-duplicado y costo**: `ContentJob.idempotencyKey`; `UsageRecord`.
 3. **Autopiloto** en `ContentConfig` (pausar/activar, "siguiente ejecución") + página de automatización.
 
@@ -175,39 +163,39 @@ Aplicados:
 - Fase 1 — `ApiKeyProvider`: + `EDITFRAME`; `ContentConfig`: + `prompt`, `slideCount`,
   `aspectRatio`, `imageSource`.
 - Fase 2 — `ContentConfig`: + `voiceover`, `voiceName`.
+- Fase 3 — sin cambios de esquema (se reutiliza `SocialAccount`: `bufferId`=channelId, `metadata.service`).
 
 Sugeridos (Fase 4): `ContentConfig.timezone`, `nextRunAt`, `isAutopilotActive`.
 
-> El repo usa `prisma db push` (schema-first, sin historial de migraciones). Tras pull:
-> `npm run db:push` y `npm run db:seed`.
+> El repo usa `prisma db push` (schema-first). Tras pull: `npm run db:push` y `npm run db:seed`.
 
 ---
 
 ## 7. MVP recomendado (alcance mínimo vendible)
 
-1. Registrarse → guardar API key de IA + **Editframe** (+ opcional OpenAI/Pexels para imágenes) →
-   conectar Buffer → escribir **un prompt**.
+1. Registrarse → guardar API key de IA + **Editframe** + **Buffer** (+ opcional OpenAI/Pexels) →
+   **sincronizar canales de Buffer** → escribir un prompt.
 2. Generar **un slideshow animado con voz e imágenes** (Editframe → MP4 en R2). ✅ vía Studio.
 3. **Preview** del guion y **aprobar**.
-4. **Agendar/publicar** en Buffer (Fase 3).
+4. **Publicar/agendar** en Buffer (un post por canal, con el MP4). ✅ Fase 3.
 5. **Activar autopiloto** (cron) para repetir automáticamente (Fase 4).
 
 ---
 
 ## 8. Riesgos y decisiones abiertas
 
-- **Editframe (BYOK)**: costo/límites de render los asume el usuario; mostrar estado/errores claros.
-- **Imágenes IA**: requieren R2 para hostear el resultado; costo a cargo del usuario (OpenAI).
-- **Pexels**: respetar licencias de uso; key de plataforma opcional.
-- **Voz**: Edge TTS es gratis pero no oficial; evaluar alternativa de pago para producción.
-- **Buffer**: validar OAuth/API vigente y soporte de video; alternativa: publicar directo por red.
-- **Abuso/multi-tenant**: rate limiting y cuotas por plan desde el autopiloto.
+- **Buffer**: OAuth para terceros aún no existe; usamos **API key BYOK**. La API GraphQL **no acepta
+  subida de archivos**: el video/imagen debe estar en una **URL pública** (R2). Validar límites de
+  tamaño/formato por red (Instagram 300MB, etc.).
+- **Editframe (BYOK)**: costo/límites de render a cargo del usuario.
+- **Imágenes IA**: requieren R2 para hostear; costo del usuario (OpenAI). **Pexels**: respetar licencias.
+- **Voz**: Edge TTS gratis pero no oficial; evaluar alternativa de pago para producción.
+- **Multi-tenant**: rate limiting y cuotas por plan desde el autopiloto.
 
 ---
 
 ## 9. Próximos pasos concretos
 
-1. Probar Fases 1–2 end-to-end con llaves reales (IA + Editframe; opcional OpenAI/Pexels; R2 para
-   imágenes y voz).
-2. Fase 3: **Buffer OAuth** + publicación del MP4 + agenda real.
-3. Fase 4: **cron** de autopiloto para la fábrica automática.
+1. Probar Fases 1–3 end-to-end con llaves reales (IA + Editframe + Buffer; R2 para media).
+2. Fase 4: **cron** de autopiloto para la fábrica automática (generación + publicación recurrentes).
+3. Fase 6: billing y cuotas para comercializar.
