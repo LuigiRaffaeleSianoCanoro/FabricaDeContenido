@@ -2,6 +2,8 @@ import { getServerEnv } from "@/config/env.server";
 import { inngest } from "@/lib/inngest/client";
 import { prisma } from "@/lib/db/prisma";
 import { createBufferProvider } from "@/lib/publishing/providers/buffer";
+import { computeNextScheduledAt } from "@/lib/publishing/schedule";
+import type { BufferAsset } from "@/lib/publishing/types";
 import { dispatchVideoRenderWorkflow, isGitHubRenderConfigured } from "@/lib/video/github-actions";
 import { buildSlideshowHtml, resolveDimensions } from "@/lib/video/editframe-composition";
 import {
@@ -224,7 +226,9 @@ export const publishToBuffer = inngest.createFunction(
     const { organizationId, generatedContentId } = event.data as {
       organizationId: string;
       generatedContentId: string;
+      publishNow?: boolean;
     };
+    const publishNow = (event.data as { publishNow?: boolean }).publishNow ?? false;
 
     const gc = await step.run("load-content", () =>
       prisma.generatedContent.findFirst({
@@ -237,56 +241,80 @@ export const publishToBuffer = inngest.createFunction(
 
     const tokenRow = await step.run("resolve-buffer-token", () => getBufferAccessTokenForOrg(organizationId));
     if (!tokenRow) {
-      throw new Error("No Buffer token configured");
+      throw new Error("No Buffer API key configured");
     }
 
-    const profiles = await step.run("buffer-profiles", () =>
+    const channels = await step.run("buffer-channels", () =>
       prisma.socialAccount.findMany({
         where: { organizationId, platform: "buffer", isActive: true },
       }),
     );
-    const profileIds = profiles.map((p) => p.bufferId).filter((id): id is string => Boolean(id && id.length));
-    if (profileIds.length === 0) {
-      throw new Error("No Buffer profile IDs on SocialAccount rows");
+    const channelIds = channels
+      .map((c) => c.bufferId)
+      .filter((id): id is string => Boolean(id && id.length));
+    if (channelIds.length === 0) {
+      throw new Error("No Buffer channels synced. Connect Buffer and sync channels in Settings.");
     }
 
-    const provider = createBufferProvider();
-    const mediaUrls = [...gc.mediaUrls, ...(gc.videoUrl ? [gc.videoUrl] : [])].filter(Boolean);
-
-    const result = await step.run("buffer-publish", async () => {
-      await touchApiKeyUsed(tokenRow.keyId);
-      return provider.schedulePost(
-        {
-          text: gc.body,
-          profileIds,
-          scheduledAt: new Date(Date.now() + 60 * 60 * 1000),
-          mediaUrls,
-        },
-        tokenRow.token,
-      );
-    });
-
-    await step.run("record-scheduled-post", () =>
-      prisma.scheduledPost.create({
-        data: {
-          generatedContentId: gc.id,
-          organizationId,
-          bufferProfileId: profileIds[0],
-          bufferUpdateId: result.id,
-          scheduledFor: new Date(Date.now() + 60 * 60 * 1000),
-          status: "SCHEDULED",
-        },
+    const cfg = await step.run("load-schedule-config", () =>
+      prisma.contentConfig.findFirst({
+        where: { organizationId, isDefault: true },
+        orderBy: { updatedAt: "desc" },
+        select: { postingSchedule: true },
       }),
     );
+
+    const scheduledAt = publishNow
+      ? new Date()
+      : computeNextScheduledAt(cfg?.postingSchedule ?? [], new Date());
+
+    const assets: BufferAsset[] = gc.videoUrl
+      ? [{ video: { url: gc.videoUrl, ...(gc.thumbnailUrl ? { thumbnailUrl: gc.thumbnailUrl } : {}) } }]
+      : gc.mediaUrls.length > 0
+        ? [{ image: { url: gc.mediaUrls[0] } }]
+        : [];
+
+    const provider = createBufferProvider();
+
+    const results = await step.run("buffer-create-posts", async () => {
+      await touchApiKeyUsed(tokenRow.keyId);
+      const out: { channelId: string; postId: string }[] = [];
+      for (const channelId of channelIds) {
+        const post = await provider.createPost(tokenRow.token, {
+          channelId,
+          text: gc.body,
+          scheduledAt,
+          publishNow,
+          assets,
+        });
+        out.push({ channelId, postId: post.id });
+      }
+      return out;
+    });
+
+    await step.run("record-scheduled-posts", async () => {
+      for (const r of results) {
+        await prisma.scheduledPost.create({
+          data: {
+            generatedContentId: gc.id,
+            organizationId,
+            bufferProfileId: r.channelId,
+            bufferUpdateId: r.postId,
+            scheduledFor: scheduledAt,
+            status: publishNow ? "PUBLISHING" : "SCHEDULED",
+          },
+        });
+      }
+    });
 
     await step.run("update-content-status", () =>
       prisma.generatedContent.update({
         where: { id: gc.id },
-        data: { status: "SCHEDULED" },
+        data: { status: publishNow ? "PUBLISHED" : "SCHEDULED" },
       }),
     );
 
-    return { ok: true, bufferUpdateId: result.id };
+    return { ok: true, posts: results.length, scheduledAt: scheduledAt.toISOString() };
   },
 );
 
