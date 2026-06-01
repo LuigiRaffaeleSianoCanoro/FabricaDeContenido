@@ -19,6 +19,23 @@ async function main() {
       category: "copy",
     },
   });
+
+  await prisma.skillDefinition.upsert({
+    where: { id: "slideshow-planner" },
+    create: {
+      id: "slideshow-planner",
+      name: "Slideshow planner",
+      version: "1.0.0",
+      category: "video",
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object" },
+    },
+    update: {
+      name: "Slideshow planner",
+      version: "1.0.0",
+      category: "video",
+    },
+  });
 }
 
 main()

@@ -30,6 +30,7 @@ enum ApiKeyProvider {
   GEMINI
   OPENROUTER
   BUFFER
+  EDITFRAME
   CUSTOM
 }
 
@@ -196,6 +197,14 @@ model ContentConfig {
   platforms        String[] @default([])
   autoPost         Boolean  @default(false)
   requireApproval  Boolean  @default(true)
+  /// Master natural-language brief used to drive slideshow generation.
+  prompt           String?
+  /// Number of slides per generated slideshow.
+  slideCount       Int      @default(5)
+  /// Output aspect ratio for the rendered slideshow video (e.g. "9:16").
+  aspectRatio      String   @default("9:16")
+  /// How slide background images are sourced: "none" | "ai" | "stock".
+  imageSource      String   @default("none")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
