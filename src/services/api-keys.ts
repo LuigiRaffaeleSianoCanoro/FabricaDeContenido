@@ -98,3 +98,24 @@ export async function getEditframeApiKeyForOrg(organizationId: string) {
   );
   return { token: secret, keyId: row.id };
 }
+
+/** Returns the decrypted raw secret for a given provider (e.g. OPENAI for image generation). */
+export async function getRawApiKeyForOrg(
+  organizationId: string,
+  provider: ApiKeyProvider,
+) {
+  const row = await prisma.encryptedApiKey.findFirst({
+    where: { organizationId, provider, isActive: true, revokedAt: null },
+  });
+  if (!row) return null;
+  const env = getServerEnv();
+  const secret = decryptSecret(
+    {
+      ciphertext: row.encryptedPayload,
+      iv: row.iv,
+      authTag: row.authTag,
+    },
+    env.ENCRYPTION_MASTER_KEY,
+  );
+  return { token: secret, keyId: row.id };
+}

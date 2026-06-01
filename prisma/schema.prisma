@@ -203,8 +203,12 @@ model ContentConfig {
   slideCount       Int      @default(5)
   /// Output aspect ratio for the rendered slideshow video (e.g. "9:16").
   aspectRatio      String   @default("9:16")
-  /// How slide background images are sourced: "none" | "ai" | "stock".
+  /// How slide background images are sourced: "none" | "ai" | "pexels".
   imageSource      String   @default("none")
+  /// Whether to add an AI voiceover (Edge TTS) to generated slideshows.
+  voiceover        Boolean  @default(false)
+  /// Edge TTS voice id used for the voiceover (e.g. "es-MX-DaliaNeural").
+  voiceName        String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

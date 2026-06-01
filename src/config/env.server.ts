@@ -42,6 +42,9 @@ const envSchema = z.object({
   VIDEO_WEBHOOK_SECRET: z.string().optional(),
 
   ADMIN_EMAILS: z.string().optional(),
+
+  /** Optional platform-level Pexels key for free stock images on slideshows. */
+  PEXELS_API_KEY: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof envSchema>;
