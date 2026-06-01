@@ -35,7 +35,7 @@ export async function settingsAddApiKey(formData: FormData) {
   if (!organizationId || !key) throw new Error("Faltan datos");
 
   await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN"]);
-  if (!["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER", "BUFFER"].includes(provider)) {
+  if (!["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER", "BUFFER", "EDITFRAME"].includes(provider)) {
     throw new Error("Proveedor no soportado");
   }
 

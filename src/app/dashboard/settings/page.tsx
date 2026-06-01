@@ -95,6 +95,7 @@ export default async function SettingsPage() {
                   <option value="ANTHROPIC">Anthropic</option>
                   <option value="GEMINI">Gemini</option>
                   <option value="OPENROUTER">OpenRouter</option>
+                  <option value="EDITFRAME">Editframe (video)</option>
                   <option value="BUFFER">Buffer</option>
                 </select>
               </div>

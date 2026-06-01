@@ -51,7 +51,7 @@ export function OnboardingWizard({ initialStep, initialOrgId }: Props) {
   return (
     <div className="glass animate-scale-in rounded-2xl p-6">
       <p className="mb-6 text-sm text-muted-foreground">
-        Paso {step} de 4 · Organización, IA, Buffer opcional, preferencias
+        Paso {step} de 4 · Organización, IA, Conexiones (Editframe/Buffer), preferencias
       </p>
 
       {step === 1 && (
