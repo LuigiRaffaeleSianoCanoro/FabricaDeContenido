@@ -21,6 +21,7 @@
     "@aws-sdk/client-s3": "^3.1047.0",
     "@base-ui/react": "^1.4.1",
     "@clerk/nextjs": "^7.3.4",
+    "@editframe/api": "^0.55.2",
     "@prisma/client": "^5.22.0",
     "@remotion/player": "^4.0.461",
     "@upstash/ratelimit": "^2.0.8",

@@ -10,8 +10,29 @@ import { isPlatformAdminEmail } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { encryptSecret, fingerprintSecret } from "@/lib/encryption/cipher";
 import { inngest } from "@/lib/inngest/client";
+import { syncBufferChannels } from "@/lib/publishing/sync";
 import { writeAuditLog } from "@/services/audit-log";
 import type { ApiKeyProvider, MemberRole, ContentStatus } from "@prisma/client";
+
+export async function syncBufferChannelsAction(formData: FormData) {
+  const { userId } = await requireSession();
+  const organizationId = String(formData.get("organizationId") ?? "").trim();
+  if (!organizationId) throw new Error("Sin organización");
+
+  await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN"]);
+
+  const result = await syncBufferChannels(organizationId);
+
+  await writeAuditLog({
+    organizationId,
+    actorUserId: userId,
+    action: "buffer.channels_synced",
+    resourceType: "SocialAccount",
+    metadata: { synced: result.synced },
+  });
+
+  revalidatePath("/dashboard/settings");
+}
 
 export async function setActiveOrganization(formData: FormData) {
   const { userId } = await requireSession();

@@ -1,7 +1,12 @@
 import { redirect } from "next/navigation";
-import { Settings, Key, Users, AlertCircle } from "lucide-react";
+import { Settings, Key, Users, AlertCircle, Share2 } from "lucide-react";
 
-import { inviteMemberAction, settingsAddApiKey, settingsRevokeApiKey } from "@/app/dashboard/actions";
+import {
+  inviteMemberAction,
+  settingsAddApiKey,
+  settingsRevokeApiKey,
+  syncBufferChannelsAction,
+} from "@/app/dashboard/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +22,13 @@ export default async function SettingsPage() {
 
   const keys = await prisma.encryptedApiKey.findMany({
     where: { organizationId: org.id, revokedAt: null },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const hasBufferKey = keys.some((k) => k.provider === "BUFFER" && k.isActive);
+
+  const channels = await prisma.socialAccount.findMany({
+    where: { organizationId: org.id, platform: "buffer", isActive: true },
     orderBy: { createdAt: "desc" },
   });
 
@@ -95,6 +107,7 @@ export default async function SettingsPage() {
                   <option value="ANTHROPIC">Anthropic</option>
                   <option value="GEMINI">Gemini</option>
                   <option value="OPENROUTER">OpenRouter</option>
+                  <option value="EDITFRAME">Editframe (video)</option>
                   <option value="BUFFER">Buffer</option>
                 </select>
               </div>
@@ -105,6 +118,50 @@ export default async function SettingsPage() {
             </div>
             <Button type="submit" className="bg-primary">
               Guardar clave
+            </Button>
+          </form>
+        </div>
+
+        <div className="glass animate-scale-in rounded-2xl p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <Share2 className="size-5 text-primary" />
+            <h2 className="font-semibold">Canales de Buffer</h2>
+          </div>
+          <p className="mb-4 flex items-start gap-2 text-sm text-muted-foreground">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            Guarda tu <strong className="mx-1">API key de Buffer</strong> (Settings → API en Buffer) en
+            Claves API, luego sincroniza tus canales conectados.
+          </p>
+
+          <ul className="mb-4 space-y-2">
+            {channels.map((c) => {
+              const meta = (c.metadata ?? {}) as { service?: string };
+              return (
+                <li
+                  key={c.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/50 bg-card/50 px-4 py-3 text-sm"
+                >
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs capitalize">
+                      {meta.service ?? "buffer"}
+                    </Badge>
+                    <span className="font-medium">{c.displayName ?? c.bufferId}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{c.bufferId}</span>
+                </li>
+              );
+            })}
+            {channels.length === 0 && (
+              <li className="text-sm text-muted-foreground">
+                No hay canales sincronizados todavía.
+              </li>
+            )}
+          </ul>
+
+          <form action={syncBufferChannelsAction}>
+            <input type="hidden" name="organizationId" value={org.id} />
+            <Button type="submit" variant="secondary" disabled={!hasBufferKey}>
+              {hasBufferKey ? "Sincronizar canales de Buffer" : "Añade tu API key de Buffer primero"}
             </Button>
           </form>
         </div>

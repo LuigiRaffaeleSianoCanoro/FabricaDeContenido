@@ -104,12 +104,15 @@ export function OnboardingWizard({ initialStep, initialOrgId }: Props) {
         <form action={a3} className="space-y-4">
           <input type="hidden" name="organizationId" value={effectiveOrgId} />
           <div className="space-y-2">
-            <Label htmlFor="bufferToken">Buffer access token (opcional)</Label>
-            <Input id="bufferToken" name="bufferToken" type="password" autoComplete="off" className="bg-background/50" />
+            <Label htmlFor="bufferToken">Buffer API key (opcional)</Label>
+            <Input id="bufferToken" name="bufferToken" type="password" autoComplete="off" placeholder="Buffer → Settings → API" className="bg-background/50" />
+            <p className="text-xs text-muted-foreground">
+              Tras guardar, sincroniza tus canales desde Ajustes → Canales de Buffer.
+            </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="bufferProfileId">Buffer profile ID (opcional)</Label>
-            <Input id="bufferProfileId" name="bufferProfileId" placeholder="5f7c..." className="bg-background/50" />
+            <Label htmlFor="bufferProfileId">Buffer channel ID (opcional)</Label>
+            <Input id="bufferProfileId" name="bufferProfileId" placeholder="opcional, o sincroniza luego" className="bg-background/50" />
           </div>
           {s3.error && <p className="text-sm text-destructive">{s3.error}</p>}
           <div className="flex flex-wrap gap-2">
