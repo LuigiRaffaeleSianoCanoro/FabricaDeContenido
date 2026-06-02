@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { cookies } from "next/headers";
 
 import { prisma } from "@/lib/db/prisma";
@@ -13,12 +14,20 @@ export type OrgWithRole = {
   role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
 };
 
-export async function listUserOrganizations(userId: string): Promise<OrgWithRole[]> {
-  const rows = await prisma.organizationMember.findMany({
+/**
+ * Memoized per-request so the dashboard layout and pages share a single DB query
+ * instead of re-fetching memberships multiple times during the same render.
+ */
+const getMembershipsForUser = cache(async (userId: string) =>
+  prisma.organizationMember.findMany({
     where: { userId },
     include: { organization: true },
     orderBy: { createdAt: "asc" },
-  });
+  }),
+);
+
+export async function listUserOrganizations(userId: string): Promise<OrgWithRole[]> {
+  const rows = await getMembershipsForUser(userId);
   return rows.map((r) => ({
     organizationId: r.organizationId,
     slug: r.organization.slug,
@@ -28,11 +37,7 @@ export async function listUserOrganizations(userId: string): Promise<OrgWithRole
 }
 
 export async function getActiveOrganizationForUser(userId: string) {
-  const rows = await prisma.organizationMember.findMany({
-    where: { userId },
-    include: { organization: true },
-    orderBy: { createdAt: "asc" },
-  });
+  const rows = await getMembershipsForUser(userId);
   if (rows.length === 0) return null;
 
   const jar = await cookies();
