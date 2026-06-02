@@ -659,9 +659,54 @@ export const slideshowPipelineV1 = inngest.createFunction(
   },
 );
 
+/**
+ * Recurring autopilot: every 15 minutes, finds ContentConfigs with autopilot enabled whose
+ * next run is due, dispatches a slideshow generation for each, and advances nextRunAt to the
+ * following scheduled slot (so a slot is never dispatched twice).
+ */
+export const autopilotTick = inngest.createFunction(
+  {
+    id: "fabrica-autopilot-tick",
+    name: "Autopilot tick",
+    triggers: [{ cron: "*/15 * * * *" }],
+  },
+  async ({ step }) => {
+    const now = new Date();
+
+    const due = await step.run("find-due-configs", () =>
+      prisma.contentConfig.findMany({
+        where: {
+          isAutopilotActive: true,
+          OR: [{ nextRunAt: null }, { nextRunAt: { lte: now } }],
+        },
+        take: 50,
+      }),
+    );
+
+    let dispatched = 0;
+    for (const cfg of due) {
+      await step.run(`dispatch-${cfg.id}`, async () => {
+        const next = computeNextScheduledAt(cfg.postingSchedule, now);
+        await prisma.contentConfig.update({
+          where: { id: cfg.id },
+          data: { nextRunAt: next, lastRunAt: now },
+        });
+        await inngest.send({
+          name: "content/slideshow.requested",
+          data: { organizationId: cfg.organizationId, contentConfigId: cfg.id },
+        });
+      });
+      dispatched += 1;
+    }
+
+    return { dispatched, at: now.toISOString() };
+  },
+);
+
 export const inngestFunctions = [
   healthCheck,
   contentPipelineV1,
   publishToBuffer,
   slideshowPipelineV1,
+  autopilotTick,
 ];

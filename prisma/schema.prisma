@@ -209,6 +209,14 @@ model ContentConfig {
   voiceover        Boolean  @default(false)
   /// Edge TTS voice id used for the voiceover (e.g. "es-MX-DaliaNeural").
   voiceName        String?
+  /// Autopilot: when true, a recurring cron generates content on this config's schedule.
+  isAutopilotActive Boolean @default(false)
+  /// IANA timezone label used for display of the posting schedule (scheduling is UTC for now).
+  timezone         String?
+  /// Next time the autopilot should generate content for this config (UTC).
+  nextRunAt        DateTime?
+  /// Last time the autopilot generated content for this config (UTC).
+  lastRunAt        DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -216,6 +224,7 @@ model ContentConfig {
   jobs         ContentJob[]
 
   @@index([organizationId])
+  @@index([isAutopilotActive, nextRunAt])
 }
 
 model Workflow {
