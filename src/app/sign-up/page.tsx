@@ -183,7 +183,13 @@ export default function SignUpPage() {
               appearance={{
                 elements: {
                   rootBox: "w-full",
-                  card: "shadow-none border-0 bg-transparent p-0 w-full",
+                  cardBox: "w-full shadow-none border-0 bg-transparent rounded-none",
+                  card: "shadow-none border-0 bg-transparent p-0 w-full gap-6",
+                  header: "hidden",
+                  footer: "bg-transparent shadow-none",
+                  footerAction: "justify-center",
+                  socialButtonsBlockButton:
+                    "rounded-xl border-border/50 bg-background/50",
                   formButtonPrimary:
                     "bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl",
                   footerActionLink: "text-primary hover:text-primary/80 font-medium",
