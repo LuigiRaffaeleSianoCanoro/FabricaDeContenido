@@ -8,18 +8,18 @@ import {
   listUserOrganizations,
   type OrgWithRole,
 } from "@/lib/auth/active-org";
-import { checkDatabase } from "@/lib/db/health";
+import { checkDatabase, checkSchema, describeDbError, type DbErrorKind } from "@/lib/db/health";
 
 export const dynamic = "force-dynamic";
 
-function DbConfigScreen({ kind, error }: { kind: string; error: string }) {
+function DbConfigScreen({ kind, error }: { kind: DbErrorKind; error: string }) {
   const hint =
     kind === "config"
       ? "Falta o es inválida la variable DATABASE_URL en tu entorno."
       : kind === "unreachable"
         ? "No se pudo conectar al servidor de base de datos. Verifica DATABASE_URL (host, puerto, SSL)."
         : kind === "schema"
-          ? "La base de datos no tiene el esquema esperado. Ejecuta las migraciones."
+          ? "La base de datos conecta pero no tiene las tablas esperadas. Aplica el esquema con `npm run db:push`."
           : "Ocurrió un error al consultar la base de datos.";
 
   return (
@@ -72,9 +72,13 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const health = await checkDatabase();
-  if (!health.ok) {
-    return <DbConfigScreen kind={health.kind} error={health.error} />;
+  const db = await checkDatabase();
+  if (!db.ok) {
+    return <DbConfigScreen kind={db.kind} error={db.error} />;
+  }
+  const schema = await checkSchema();
+  if (!schema.ok) {
+    return <DbConfigScreen kind={schema.kind} error={schema.error} />;
   }
 
   const email = user.emailAddresses[0]?.emailAddress ?? "";
@@ -85,12 +89,8 @@ export default async function DashboardLayout({
     orgs = await listUserOrganizations(user.id);
     active = await getActiveOrganizationForUser(user.id);
   } catch (err) {
-    return (
-      <DbConfigScreen
-        kind="unknown"
-        error={err instanceof Error ? err.message : String(err)}
-      />
-    );
+    const { error, kind } = describeDbError(err);
+    return <DbConfigScreen kind={kind} error={error} />;
   }
 
   return (
