@@ -26,13 +26,19 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Only mount Clerk when configured so the public marketing page renders even
+  // without auth credentials. Protected routes are still gated by the proxy.
+  const clerkEnabled = Boolean(
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim()
+  );
+
   return (
     <html
       lang="es"
       className={`${spaceGrotesk.variable} ${spaceMono.variable} h-full bg-background antialiased`}
     >
       <body className="flex min-h-full flex-col">
-        <ClerkProvider>{children}</ClerkProvider>
+        {clerkEnabled ? <ClerkProvider>{children}</ClerkProvider> : children}
       </body>
     </html>
   );

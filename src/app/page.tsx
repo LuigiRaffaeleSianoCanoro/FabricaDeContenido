@@ -1,297 +1,422 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useRef } from "react";
-import { ArrowRight } from "lucide-react";
+import {
+  ArrowRight,
+  AudioLines,
+  Bot,
+  CalendarClock,
+  ClipboardList,
+  KeyRound,
+  Link2,
+  Play,
+  Share2,
+  ShieldCheck,
+  Sparkles,
+  Video,
+  Wand2,
+} from "lucide-react";
 
+import { ShaderBackground } from "@/components/landing/shader-background";
+import { Reveal } from "@/components/landing/reveal";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-// Intense WebGL Shader with flowing orange plasma effect
-function PlasmaShader() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+const steps = [
+  {
+    icon: ClipboardList,
+    title: "Respondé el cuestionario",
+    body: "Contanos tu marca, tu tono, tu audiencia y las redes donde querés crecer. Sin configuraciones técnicas.",
+  },
+  {
+    icon: Wand2,
+    title: "Armamos tus skills",
+    body: "Con tus respuestas generamos los skills del agente: guiones, imágenes y voz en off listos para tu estilo.",
+  },
+  {
+    icon: Link2,
+    title: "Conectá tu Buffer",
+    body: "Te damos las instrucciones para vincular tu cuenta de Buffer y sincronizar todos tus canales en un clic.",
+  },
+  {
+    icon: Bot,
+    title: "Nosotros somos el trigger",
+    body: "Activás el autopiloto y tu agente crea y agenda videos promocionales de forma recurrente, solo.",
+  },
+];
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+const features = [
+  {
+    icon: KeyRound,
+    title: "Tu propia API key",
+    body: "Trae la IA que quieras —OpenAI, Anthropic, Gemini u OpenRouter—. Tus claves se guardan cifradas (AES-256).",
+  },
+  {
+    icon: Video,
+    title: "Video con hyperframes",
+    body: "Slideshows animados renderizados en la nube a partir de un prompt, listos para vertical y horizontal.",
+  },
+  {
+    icon: AudioLines,
+    title: "Voz en off gratuita",
+    body: "Locución automática por slide con voces naturales, sincronizada a la duración real de cada escena.",
+  },
+  {
+    icon: CalendarClock,
+    title: "Agenda inteligente",
+    body: "Definí horarios y frecuencia una vez. El cron del autopiloto publica en cada slot sin repetir.",
+  },
+  {
+    icon: Share2,
+    title: "Multi-red vía Buffer",
+    body: "Publicá en todas tus redes conectando una sola cuenta de Buffer. Sincronización de canales incluida.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Privado por diseño",
+    body: "Multi-tenant, claves cifradas por workspace y auditoría. Tu contenido y tus secretos son solo tuyos.",
+  },
+];
 
-    const gl = canvas.getContext("webgl");
-    if (!gl) return;
+const channels = [
+  "Instagram",
+  "TikTok",
+  "YouTube",
+  "LinkedIn",
+  "Facebook",
+  "X",
+  "Threads",
+  "Pinterest",
+];
 
-    const vertexShaderSource = `
-      attribute vec2 a_position;
-      void main() {
-        gl_Position = vec4(a_position, 0.0, 1.0);
-      }
-    `;
-
-    const fragmentShaderSource = `
-      precision highp float;
-      uniform vec2 u_resolution;
-      uniform float u_time;
-      
-      // Simplex noise function
-      vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-      vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-      vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
-      
-      float snoise(vec2 v) {
-        const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
-        vec2 i  = floor(v + dot(v, C.yy));
-        vec2 x0 = v - i + dot(i, C.xx);
-        vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-        vec4 x12 = x0.xyxy + C.xxzz;
-        x12.xy -= i1;
-        i = mod289(i);
-        vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
-        vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
-        m = m*m; m = m*m;
-        vec3 x = 2.0 * fract(p * C.www) - 1.0;
-        vec3 h = abs(x) - 0.5;
-        vec3 ox = floor(x + 0.5);
-        vec3 a0 = x - ox;
-        m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
-        vec3 g;
-        g.x = a0.x * x0.x + h.x * x0.y;
-        g.yz = a0.yz * x12.xz + h.yz * x12.yw;
-        return 130.0 * dot(m, g);
-      }
-      
-      void main() {
-        vec2 st = gl_FragCoord.xy / u_resolution.xy;
-        vec2 pos = st * 3.0;
-        
-        // Multiple layers of flowing noise
-        float n1 = snoise(pos + u_time * 0.15);
-        float n2 = snoise(pos * 2.0 - u_time * 0.1);
-        float n3 = snoise(pos * 0.5 + vec2(u_time * 0.08, -u_time * 0.05));
-        
-        // Combine noise layers
-        float noise = (n1 + n2 * 0.5 + n3 * 0.25) / 1.75;
-        noise = noise * 0.5 + 0.5;
-        
-        // Flowing wave patterns
-        float wave1 = sin(st.x * 8.0 + st.y * 4.0 + u_time * 0.8 + noise * 3.0) * 0.5 + 0.5;
-        float wave2 = sin(st.y * 6.0 - st.x * 3.0 + u_time * 0.6 + noise * 2.0) * 0.5 + 0.5;
-        float wave3 = sin((st.x + st.y) * 5.0 + u_time * 1.0) * 0.5 + 0.5;
-        
-        // Fluorescent orange palette - more intense
-        vec3 orange1 = vec3(1.0, 0.35, 0.0);    // Deep fluorescent orange
-        vec3 orange2 = vec3(1.0, 0.55, 0.1);    // Bright orange
-        vec3 orange3 = vec3(1.0, 0.7, 0.3);     // Light orange
-        vec3 white = vec3(1.0, 0.98, 0.95);     // Warm white
-        vec3 cream = vec3(1.0, 0.95, 0.88);     // Cream
-        
-        // Create dynamic color mixing
-        vec3 color = mix(cream, orange3, wave1 * 0.4);
-        color = mix(color, orange2, wave2 * 0.35 * noise);
-        color = mix(color, orange1, wave3 * 0.2 * (1.0 - noise));
-        color = mix(color, white, (1.0 - noise) * 0.3);
-        
-        // Add pulsing bright spots
-        float pulse = sin(u_time * 2.0) * 0.5 + 0.5;
-        float spot = smoothstep(0.7, 1.0, noise) * pulse;
-        color = mix(color, orange1, spot * 0.4);
-        
-        // Radial gradient from center
-        float dist = length(st - vec2(0.5));
-        color = mix(color, orange2, smoothstep(0.8, 0.0, dist) * 0.15);
-        
-        gl_FragColor = vec4(color, 1.0);
-      }
-    `;
-
-    function createShader(gl: WebGLRenderingContext, type: number, source: string) {
-      const shader = gl.createShader(type);
-      if (!shader) return null;
-      gl.shaderSource(shader, source);
-      gl.compileShader(shader);
-      return shader;
-    }
-
-    const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
-    const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
-    if (!vertexShader || !fragmentShader) return;
-
-    const program = gl.createProgram();
-    if (!program) return;
-    gl.attachShader(program, vertexShader);
-    gl.attachShader(program, fragmentShader);
-    gl.linkProgram(program);
-    gl.useProgram(program);
-
-    const positionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-
-    const positionLocation = gl.getAttribLocation(program, "a_position");
-    gl.enableVertexAttribArray(positionLocation);
-    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-
-    const resolutionLocation = gl.getUniformLocation(program, "u_resolution");
-    const timeLocation = gl.getUniformLocation(program, "u_time");
-
-    let animationId: number;
-    const startTime = Date.now();
-
-    function resize() {
-      if (!canvas || !gl) return;
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      gl.viewport(0, 0, canvas.width, canvas.height);
-    }
-
-    function render() {
-      if (!gl || !canvas) return;
-      const time = (Date.now() - startTime) * 0.001;
-      gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
-      gl.uniform1f(timeLocation, time);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      animationId = requestAnimationFrame(render);
-    }
-
-    resize();
-    window.addEventListener("resize", resize);
-    render();
-
-    return () => {
-      window.removeEventListener("resize", resize);
-      cancelAnimationFrame(animationId);
-    };
-  }, []);
-
+export default function HomePage() {
   return (
-    <canvas
-      ref={canvasRef}
-      className="pointer-events-none fixed inset-0 -z-10"
-      style={{ width: "100%", height: "100%" }}
-    />
-  );
-}
-
-// Animated Factory Worker SVG
-function AnimatedFactoryWorker() {
-  return (
-    <div className="relative flex items-center justify-center">
-      {/* Outer glow ring */}
-      <div className="absolute size-40 animate-pulse rounded-full bg-primary/20 blur-3xl sm:size-56 md:size-72" />
-      
-      {/* Rotating ring */}
-      <div className="absolute size-36 animate-[spin_8s_linear_infinite] rounded-full border-2 border-dashed border-primary/40 sm:size-48 md:size-64" />
-      
-      {/* Inner rotating ring opposite direction */}
-      <div className="absolute size-28 animate-[spin_6s_linear_infinite_reverse] rounded-full border border-primary/30 sm:size-40 md:size-52" />
-      
-      {/* Main icon container */}
-      <div className="relative z-10 flex size-24 items-center justify-center rounded-3xl bg-primary shadow-2xl sm:size-32 md:size-40">
-        <svg
-          viewBox="0 0 64 64"
-          className="size-14 animate-[bounce_2s_ease-in-out_infinite] text-primary-foreground sm:size-20 md:size-24"
-          fill="currentColor"
-        >
-          {/* Factory building */}
-          <path d="M8 56V28l12-8v8l12-8v8l12-8v36H8z" opacity="0.9" />
-          {/* Smokestacks */}
-          <rect x="12" y="20" width="4" height="12" rx="1" />
-          <rect x="24" y="16" width="4" height="16" rx="1" />
-          <rect x="36" y="12" width="4" height="20" rx="1" />
-          {/* Smoke puffs - animated via CSS */}
-          <circle cx="14" cy="14" r="3" className="animate-[float_2s_ease-in-out_infinite]" opacity="0.6" />
-          <circle cx="26" cy="10" r="4" className="animate-[float_2.5s_ease-in-out_infinite_0.3s]" opacity="0.5" />
-          <circle cx="38" cy="6" r="3" className="animate-[float_2s_ease-in-out_infinite_0.6s]" opacity="0.7" />
-          {/* Worker silhouette */}
-          <circle cx="52" cy="38" r="5" />
-          <path d="M48 44h8v12h-8z" rx="1" />
-          {/* Gear/cog */}
-          <g className="origin-center animate-[spin_4s_linear_infinite]" style={{ transformOrigin: "52px 52px" }}>
-            <circle cx="52" cy="52" r="6" fill="none" stroke="currentColor" strokeWidth="2" />
-            <circle cx="52" cy="52" r="2" />
-            <path d="M52 44v4M52 56v4M44 52h4M56 52h4M46.3 46.3l2.8 2.8M54.9 54.9l2.8 2.8M46.3 57.7l2.8-2.8M54.9 49.1l2.8-2.8" stroke="currentColor" strokeWidth="2" />
-          </g>
-        </svg>
+    <div className="relative isolate min-h-screen w-full overflow-x-hidden bg-[#08060e] text-white">
+      {/* Always-on vivid animated aurora (visible even without WebGL) */}
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <div className="aurora-base absolute inset-0" />
+        <div className="absolute right-[-12rem] top-1/4 size-[40rem] animate-blob rounded-full bg-amber-500/25 blur-[140px] [animation-delay:-6s]" />
+        <div className="absolute bottom-[-16rem] left-1/2 size-[42rem] animate-blob rounded-full bg-orange-600/25 blur-[150px] [animation-delay:-10s]" />
+        <div className="absolute -bottom-10 right-0 size-[34rem] animate-blob rounded-full bg-rose-600/20 blur-[140px]" />
       </div>
-      
-      {/* Floating particles */}
-      <div className="absolute -top-4 left-0 size-3 animate-[float_3s_ease-in-out_infinite] rounded-full bg-primary/60" />
-      <div className="absolute -right-2 top-8 size-2 animate-[float_2.5s_ease-in-out_infinite_0.5s] rounded-full bg-primary/50" />
-      <div className="absolute -bottom-2 right-4 size-4 animate-[float_3.5s_ease-in-out_infinite_1s] rounded-full bg-primary/40" />
-      <div className="absolute -left-4 bottom-8 size-2 animate-[float_2s_ease-in-out_infinite_0.8s] rounded-full bg-primary/70" />
+
+      {/* WebGL shader on top of the CSS fallback. Opaque when WebGL is
+          available; transparent (revealing the aurora) when it is not. */}
+      <div className="pointer-events-none fixed inset-0 z-0">
+        <ShaderBackground className="h-full w-full" />
+      </div>
+
+      {/* Glows that read over the dark shader, plus grid, grain and scrims */}
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <div className="absolute right-[-12rem] top-1/4 size-[40rem] animate-blob rounded-full bg-amber-500/20 blur-[150px] [animation-delay:-6s]" />
+        <div className="absolute bottom-[-16rem] left-1/2 size-[42rem] animate-blob rounded-full bg-orange-600/20 blur-[150px] [animation-delay:-10s]" />
+        <div className="grid-backdrop absolute inset-0" />
+        <div className="noise-overlay absolute inset-0 opacity-60" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#08060e]/70 via-[#08060e]/10 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#08060e]/40 via-transparent to-[#08060e]/80" />
+      </div>
+
+      {/* Header */}
+      <header className="sticky top-0 z-50">
+        <div className="mx-auto mt-4 flex w-[min(72rem,92%)] items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-xl">
+          <Link href="/" className="group flex items-center gap-2.5">
+            <span className="flex size-9 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/30 transition-transform group-hover:scale-110">
+              <svg viewBox="0 0 24 24" className="size-5 text-primary-foreground" fill="currentColor">
+                <path d="M4 19V9l6-4v4l6-4v4l4-2.67V19H4z" />
+              </svg>
+            </span>
+            <span className="text-base font-bold tracking-tight">Fábrica</span>
+          </Link>
+
+          <nav className="hidden items-center gap-8 text-sm text-white/70 md:flex">
+            <a href="#como-funciona" className="transition-colors hover:text-white">
+              Cómo funciona
+            </a>
+            <a href="#features" className="transition-colors hover:text-white">
+              Características
+            </a>
+            <a href="#autopiloto" className="transition-colors hover:text-white">
+              Autopiloto
+            </a>
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <Link
+              href="/login"
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "lg" }),
+                "hidden text-white hover:bg-white/10 hover:text-white sm:inline-flex"
+              )}
+            >
+              Iniciar sesión
+            </Link>
+            <Link
+              href="/sign-up"
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "shimmer relative overflow-hidden rounded-xl bg-primary px-5 font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-transform hover:scale-105"
+              )}
+            >
+              Empezar
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <main className="relative z-10">
+        <section className="mx-auto grid w-[min(72rem,92%)] grid-cols-1 items-center gap-12 pb-20 pt-16 lg:grid-cols-[1.05fr_0.95fr] lg:pt-24">
+          <Reveal from="left">
+            <div className="flex flex-col items-start">
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-medium text-white/80 backdrop-blur">
+                <Sparkles className="size-3.5 text-primary" />
+                Tu fábrica de contenido en autopiloto
+              </span>
+
+              <h1 className="mt-6 text-balance text-5xl font-bold leading-[1.02] tracking-tight sm:text-6xl xl:text-7xl">
+                Videos que se{" "}
+                <span className="gradient-text-animated">publican solos</span>
+                , con tu propia IA.
+              </h1>
+
+              <p className="mt-6 max-w-xl text-pretty text-lg text-white/65">
+                Respondé un cuestionario, conectá tu cuenta de Buffer y dejá que tu
+                agente cree y agende videos promocionales para tus redes —de forma
+                recurrente y automática.
+              </p>
+
+              <div className="mt-9 flex flex-wrap items-center gap-3">
+                <Link
+                  href="/sign-up"
+                  className={cn(
+                    buttonVariants({ size: "lg" }),
+                    "shimmer group relative overflow-hidden rounded-2xl bg-primary px-8 py-6 text-base font-bold text-primary-foreground shadow-xl shadow-primary/30 transition-transform hover:scale-105"
+                  )}
+                >
+                  Empezar gratis
+                  <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
+                </Link>
+                <a
+                  href="#como-funciona"
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "lg" }),
+                    "rounded-2xl border-white/20 bg-white/5 px-7 py-6 text-base font-semibold text-white backdrop-blur hover:bg-white/10 hover:text-white"
+                  )}
+                >
+                  <Play className="size-4" />
+                  Ver cómo funciona
+                </a>
+              </div>
+
+              <p className="mt-6 font-mono text-xs tracking-wider text-white/40">
+                Sin tarjeta de crédito · Trae tu propia API key · Cancelás cuando quieras
+              </p>
+            </div>
+          </Reveal>
+
+          <Reveal from="right" delay={120}>
+            <HeroPreview />
+          </Reveal>
+        </section>
+
+        {/* Channels marquee */}
+        <section className="relative border-y border-white/10 bg-white/[0.03] py-6 backdrop-blur-sm">
+          <p className="mb-4 text-center font-mono text-xs uppercase tracking-[0.3em] text-white/40">
+            Publicá en todas tus redes
+          </p>
+          <div className="relative flex overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)]">
+            <div className="flex animate-marquee whitespace-nowrap">
+              {[...channels, ...channels].map((c, i) => (
+                <span
+                  key={`${c}-${i}`}
+                  className="mx-8 text-lg font-semibold tracking-tight text-white/55"
+                >
+                  {c}
+                </span>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* How it works */}
+        <section id="como-funciona" className="mx-auto w-[min(72rem,92%)] py-24">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <h2 className="text-balance text-4xl font-bold tracking-tight sm:text-5xl">
+              De cero a piloto automático en{" "}
+              <span className="gradient-text-animated">4 pasos</span>
+            </h2>
+            <p className="mt-4 text-lg text-white/60">
+              La página es simple a propósito: vos respondés, nosotros armamos el
+              agente y disparamos el contenido.
+            </p>
+          </Reveal>
+
+          <ol className="mt-16 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {steps.map((step, i) => (
+              <Reveal as="li" from="up" delay={i * 110} key={step.title}>
+                <div className="glass-panel group relative h-full overflow-hidden rounded-3xl p-6 transition-transform duration-300 hover:-translate-y-1.5">
+                  <span className="absolute right-5 top-4 font-mono text-5xl font-bold text-white/5 transition-colors group-hover:text-primary/20">
+                    0{i + 1}
+                  </span>
+                  <span className="flex size-12 items-center justify-center rounded-2xl bg-primary/15 text-primary ring-1 ring-primary/25">
+                    <step.icon className="size-6" />
+                  </span>
+                  <h3 className="mt-5 text-lg font-semibold">{step.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-white/60">
+                    {step.body}
+                  </p>
+                </div>
+              </Reveal>
+            ))}
+          </ol>
+        </section>
+
+        {/* Features */}
+        <section id="features" className="mx-auto w-[min(72rem,92%)] py-20">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <h2 className="text-balance text-4xl font-bold tracking-tight sm:text-5xl">
+              Todo lo que necesita tu{" "}
+              <span className="gradient-text-animated">agente de contenido</span>
+            </h2>
+            <p className="mt-4 text-lg text-white/60">
+              Una plataforma BYOK: vos ponés las llaves, nosotros la orquestación.
+            </p>
+          </Reveal>
+
+          <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {features.map((feature, i) => (
+              <Reveal from="scale" delay={(i % 3) * 90} key={feature.title}>
+                <div className="glass-panel group h-full rounded-3xl p-6 transition-all duration-300 hover:-translate-y-1.5">
+                  <span className="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/30 to-amber-400/10 text-primary ring-1 ring-white/10 transition-transform group-hover:scale-110">
+                    <feature.icon className="size-5" />
+                  </span>
+                  <h3 className="mt-5 text-lg font-semibold">{feature.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-white/60">
+                    {feature.body}
+                  </p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </section>
+
+        {/* Autopilot CTA */}
+        <section id="autopiloto" className="mx-auto w-[min(72rem,92%)] py-20">
+          <Reveal from="scale">
+            <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-primary/25 via-white/5 to-transparent p-10 text-center backdrop-blur-xl sm:p-16">
+              <div className="pointer-events-none absolute left-1/2 top-0 size-[28rem] -translate-x-1/2 -translate-y-1/2 animate-spin-slow rounded-full bg-[conic-gradient(from_0deg,transparent,oklch(0.75_0.2_50/0.35),transparent)] blur-2xl" />
+              <div className="relative">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-medium text-white/85">
+                  <Bot className="size-3.5 text-primary" />
+                  Encendé el autopiloto
+                </span>
+                <h2 className="mx-auto mt-6 max-w-2xl text-balance text-4xl font-bold tracking-tight sm:text-5xl">
+                  Configurá una vez. Publicá para siempre.
+                </h2>
+                <p className="mx-auto mt-4 max-w-xl text-lg text-white/65">
+                  Tu marca produciendo videos promocionales todos los días, sin que
+                  vuelvas a tocar nada.
+                </p>
+                <Link
+                  href="/sign-up"
+                  className={cn(
+                    buttonVariants({ size: "lg" }),
+                    "shimmer group relative mt-9 inline-flex overflow-hidden rounded-2xl bg-primary px-9 py-6 text-base font-bold text-primary-foreground shadow-xl shadow-primary/30 transition-transform hover:scale-105"
+                  )}
+                >
+                  Crear mi fábrica
+                  <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
+                </Link>
+              </div>
+            </div>
+          </Reveal>
+        </section>
+
+        {/* Footer */}
+        <footer className="mx-auto w-[min(72rem,92%)] border-t border-white/10 py-10">
+          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
+            <div className="flex items-center gap-2.5">
+              <span className="flex size-8 items-center justify-center rounded-lg bg-primary">
+                <svg viewBox="0 0 24 24" className="size-4 text-primary-foreground" fill="currentColor">
+                  <path d="M4 19V9l6-4v4l6-4v4l4-2.67V19H4z" />
+                </svg>
+              </span>
+              <span className="font-mono text-xs tracking-widest text-white/50">
+                FÁBRICA DE CONTENIDO
+              </span>
+            </div>
+            <div className="flex items-center gap-6 text-sm text-white/50">
+              <Link href="/login" className="transition-colors hover:text-white">
+                Iniciar sesión
+              </Link>
+              <Link href="/sign-up" className="transition-colors hover:text-white">
+                Crear cuenta
+              </Link>
+            </div>
+          </div>
+        </footer>
+      </main>
     </div>
   );
 }
 
-export default function HomePage() {
+/** Floating product mock shown in the hero. */
+function HeroPreview() {
   return (
-    <div className="relative flex h-screen w-screen flex-col overflow-hidden">
-      <PlasmaShader />
-      
-      {/* Noise overlay for texture */}
-      <div className="noise-overlay pointer-events-none fixed inset-0" />
-
-      {/* Minimal Header */}
-      <header className="relative z-10 flex h-16 shrink-0 items-center justify-between px-6 lg:px-12">
-        <Link href="/" className="group flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-primary/90 shadow-lg transition-transform group-hover:scale-110">
-            <svg viewBox="0 0 24 24" className="size-5 text-primary-foreground" fill="currentColor">
-              <path d="M4 19V9l6-4v4l6-4v4l4-2.67V19H4z" />
-            </svg>
+    <div className="relative mx-auto w-full max-w-md animate-bob">
+      <div className="absolute inset-0 -z-10 rounded-[2rem] bg-primary/30 blur-3xl" />
+      <div className="glass-panel rounded-[1.75rem] p-5 shadow-2xl shadow-black/40">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="size-3 rounded-full bg-rose-400/70" />
+            <span className="size-3 rounded-full bg-amber-400/70" />
+            <span className="size-3 rounded-full bg-emerald-400/70" />
           </div>
-          <span className="text-lg font-bold tracking-tight text-foreground/90">
-            Fábrica
+          <span className="flex items-center gap-1.5 rounded-full bg-emerald-400/15 px-2.5 py-1 text-[10px] font-semibold text-emerald-300">
+            <span className="size-1.5 animate-pulse rounded-full bg-emerald-400" />
+            Autopiloto activo
           </span>
-        </Link>
-        
-
-      </header>
-
-      {/* Main Content - Centered, minimal */}
-      <main className="relative z-10 flex flex-1 flex-col items-center justify-center gap-12 px-6 lg:flex-row lg:gap-20 lg:px-12">
-        
-        {/* Left: Animated Logo */}
-        <div className="order-2 lg:order-1">
-          <AnimatedFactoryWorker />
         </div>
 
-        {/* Right: Minimal Copy */}
-        <div className="order-1 flex max-w-lg flex-col items-center text-center lg:order-2 lg:items-start lg:text-left">
-          
-          {/* Problem Statement */}
-          <h1 className="text-balance text-4xl font-bold leading-[1.05] tracking-tight text-foreground sm:text-5xl lg:text-6xl xl:text-7xl">
-            <span className="text-foreground/80">{"¿Cansado de "}</span>
-            <span className="gradient-text">generar contenido</span>
-            <span className="text-foreground/80">?</span>
-          </h1>
-
-          {/* CTA */}
-          <p className="mt-6 text-lg font-medium text-foreground/60 sm:text-xl lg:mt-8">
-            Registrate y sacate este problema de encima.
-          </p>
-
-          {/* CTA Button */}
-          <Link
-            href="/sign-up"
-            className={cn(
-              buttonVariants({ size: "lg" }),
-              "orange-glow mt-8 gap-3 rounded-2xl bg-primary px-10 py-7 text-lg font-bold text-primary-foreground transition-all duration-300 hover:scale-105 hover:bg-primary/90 lg:mt-10"
-            )}
-          >
-            Empezar ahora
-            <ArrowRight className="size-5" />
-          </Link>
-
-          {/* Subtle trust indicator */}
-          <p className="mt-6 font-mono text-xs tracking-wider text-foreground/40">
-            Sin tarjeta de credito requerida
-          </p>
+        {/* Video preview */}
+        <div className="relative mt-4 aspect-video overflow-hidden rounded-2xl bg-gradient-to-br from-primary/40 via-rose-500/20 to-amber-400/30">
+          <div className="absolute inset-0 grid-backdrop opacity-40" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="flex size-14 items-center justify-center rounded-full bg-white/90 text-primary shadow-lg">
+              <Play className="size-6 translate-x-0.5" fill="currentColor" />
+            </span>
+          </div>
+          <span className="absolute bottom-3 left-3 rounded-md bg-black/50 px-2 py-1 font-mono text-[10px] text-white/80 backdrop-blur">
+            slideshow_promo.mp4
+          </span>
+          <span className="absolute right-3 top-3 rounded-md bg-black/40 px-2 py-1 text-[10px] font-medium text-white/80 backdrop-blur">
+            9:16 · 0:18
+          </span>
         </div>
-      </main>
 
-      {/* Minimal Footer */}
-      <footer className="relative z-10 flex h-12 shrink-0 items-center justify-center px-6">
-        <p className="font-mono text-xs tracking-widest text-foreground/30">
-          FABRICA DE CONTENIDO
-        </p>
-      </footer>
+        {/* Schedule rows */}
+        <div className="mt-4 space-y-2.5">
+          {[
+            { label: "Hoy · 09:00", net: "Instagram", tone: "bg-rose-400/70" },
+            { label: "Hoy · 14:30", net: "TikTok", tone: "bg-sky-400/70" },
+            { label: "Mañana · 11:00", net: "LinkedIn", tone: "bg-amber-400/70" },
+          ].map((row) => (
+            <div
+              key={row.label}
+              className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2.5"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className={cn("size-2 rounded-full", row.tone)} />
+                <span className="text-sm text-white/80">{row.net}</span>
+              </div>
+              <span className="font-mono text-xs text-white/45">{row.label}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 flex items-center justify-between rounded-xl bg-primary/15 px-3 py-2.5 ring-1 ring-primary/25">
+          <span className="text-sm font-medium text-white/85">Próxima generación</span>
+          <span className="font-mono text-xs text-primary">en 12 min</span>
+        </div>
+      </div>
     </div>
   );
 }
