@@ -50,6 +50,12 @@ export function OnboardingWizard({ initialStep, initialOrgId }: Props) {
 
   return (
     <div className="glass animate-scale-in rounded-2xl p-6">
+      <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-muted/40">
+        <div
+          className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+          style={{ width: `${(step / 4) * 100}%` }}
+        />
+      </div>
       <p className="mb-6 text-sm text-muted-foreground">
         Paso {step} de 4 · Organización, IA, Buffer opcional, preferencias
       </p>

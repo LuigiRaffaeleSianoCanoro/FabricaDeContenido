@@ -11,6 +11,44 @@
 
 ---
 
+## 0. Camino a producto terminado (resumen ejecutivo)
+
+> Visión en una frase: **una persona contesta un cuestionario, le armamos los skills del
+> agente, le damos las instrucciones para vincular Buffer, y nosotros somos el trigger
+> que crea y publica videos promocionales en sus redes, en autopiloto.**
+
+El **núcleo técnico ya está implementado** (Fases 1–4: prompt → guion → imágenes → voz →
+render → publicación → cron de autopiloto). Lo que falta para considerarlo **producto
+terminado self-serve** son milestones de **producto, confianza y pulido**, no de motor.
+
+### Estado del rediseño (UI moderna + shaders/animaciones)
+- ✅ **Landing** (`/`): rediseño completo — fondo WebGL (aurora/plasma reactivo al puntero),
+  blobs aurora, grid animado, grano, secciones "Cómo funciona / Características / Autopiloto",
+  reveals al hacer scroll, mock de producto flotante. Respeta `prefers-reduced-motion`.
+- ✅ **Onboarding**: barra de progreso animada en el cuestionario.
+- ⏳ **Dashboard**: pendiente unificar la estética (glass + acentos animados) en panel,
+  studio, automatización, calendario.
+
+### Milestones restantes (ordenados por impacto)
+
+| Milestone | Qué entrega | Estado |
+|-----------|-------------|--------|
+| **M1 — Cuestionario único** | Un solo flujo "contestá y listo": un prompt maestro + 4–5 preguntas derivan `topics/tone/audience/platforms/postsPerDay` (G7). | Parcial |
+| **M2 — Auto-armado de skills** | Tras el cuestionario, generar/activar automáticamente los skills del agente (guion, imágenes, voz) con defaults sensatos. | Pendiente |
+| **M3 — Conectar Buffer guiado** | Instrucciones paso a paso + validación de la API key + sync de canales con feedback de éxito/error. | Parcial (sync existe) |
+| **M4 — Trigger robusto** | Autopiloto con timezone real, idempotencia por `(config, slot)`, reintentos/backoff y DLQ. | Parcial (cron existe) |
+| **M5 — Negocio** | Planes, cuotas (`UsageRecord` + ratelimit) y billing (Stripe) (G8). | Pendiente |
+| **M6 — Endurecimiento** | Validación de webhooks, rate limiting, borrado por org, auditoría, cumplimiento (Fase 7). | Pendiente |
+| **M7 — Observabilidad** | Métricas de pipeline, estado por job, alertas y panel de salud. | Pendiente |
+| **M8 — Rediseño del dashboard** | Llevar la estética del landing a todo el panel. | Pendiente |
+
+**Definición de "terminado"**: un usuario nuevo puede, sin ayuda, registrarse → contestar el
+cuestionario → pegar su API key de IA → vincular Buffer siguiendo instrucciones → activar el
+autopiloto → recibir videos publicados de forma recurrente, con límites de plan claros y la
+plataforma observable y endurecida para producción.
+
+---
+
 ## 1. Visión del producto
 
 1. **Se registra** (Clerk).
