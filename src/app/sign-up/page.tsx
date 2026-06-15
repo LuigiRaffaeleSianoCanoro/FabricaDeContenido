@@ -144,7 +144,7 @@ function PlasmaBackground() {
 
 export default function SignUpPage() {
   return (
-    <div className="relative flex h-screen w-screen flex-col overflow-hidden">
+    <div className="relative flex min-h-[100svh] w-full flex-col overflow-x-hidden">
       <PlasmaBackground />
       <div className="noise-overlay pointer-events-none fixed inset-0" />
 
@@ -163,10 +163,10 @@ export default function SignUpPage() {
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-6">
+      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-8 sm:px-6">
         <div className="w-full max-w-sm">
           {/* Glass card */}
-          <div className="glass rounded-3xl p-8 shadow-2xl">
+          <div className="glass rounded-3xl p-6 shadow-2xl sm:p-8">
             <div className="mb-6 text-center">
               <h1 className="text-2xl font-bold tracking-tight">
                 Crea tu cuenta
