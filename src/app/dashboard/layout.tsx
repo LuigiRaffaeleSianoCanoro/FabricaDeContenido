@@ -8,7 +8,7 @@ import {
   listUserOrganizations,
   type OrgWithRole,
 } from "@/lib/auth/active-org";
-import { checkDatabase } from "@/lib/db/health";
+import { checkDatabase, classifyDbError } from "@/lib/db/health";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,7 @@ function DbConfigScreen({ kind, error }: { kind: string; error: string }) {
       : kind === "unreachable"
         ? "No se pudo conectar al servidor de base de datos. Verifica DATABASE_URL (host, puerto, SSL)."
         : kind === "schema"
-          ? "La base de datos no tiene el esquema esperado. Ejecuta las migraciones."
+          ? "La base de datos conecta pero le faltan tablas. Aplica el esquema con npm run db:push."
           : "Ocurrió un error al consultar la base de datos.";
 
   return (
@@ -85,12 +85,8 @@ export default async function DashboardLayout({
     orgs = await listUserOrganizations(user.id);
     active = await getActiveOrganizationForUser(user.id);
   } catch (err) {
-    return (
-      <DbConfigScreen
-        kind="unknown"
-        error={err instanceof Error ? err.message : String(err)}
-      />
-    );
+    const message = err instanceof Error ? err.message : String(err);
+    return <DbConfigScreen kind={classifyDbError(message)} error={message} />;
   }
 
   return (
