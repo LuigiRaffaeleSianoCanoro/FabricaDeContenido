@@ -18,6 +18,39 @@ export type OnboardingActionState = {
   organizationId?: string;
 };
 
+/**
+ * Converts an unexpected server-action error into a friendly inline message so
+ * the onboarding wizard can show the real reason instead of crashing into the
+ * generic dashboard error boundary. The most common production cause is a
+ * malformed `ENCRYPTION_MASTER_KEY` (must be 64 hex chars / 32 bytes).
+ */
+function toFriendlyError(e: unknown): OnboardingActionState {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/encryption_master_key|master key/i.test(msg)) {
+    return {
+      error:
+        "La clave de cifrado ENCRYPTION_MASTER_KEY no es válida: debe tener 64 caracteres hexadecimales (32 bytes). Regenerala (node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\") y configurala en tu hosting, luego volvé a desplegar.",
+    };
+  }
+  if (/no tienes permiso/i.test(msg)) {
+    return { error: msg };
+  }
+  return { error: `No se pudo guardar. Detalle: ${msg}` };
+}
+
+/**
+ * Returns a friendly error state when `ENCRYPTION_MASTER_KEY` is missing or not
+ * exactly 64 hex chars, so steps that encrypt a secret fail gracefully with a
+ * clear message instead of throwing into the error boundary.
+ */
+function encryptionKeyError(): OnboardingActionState | null {
+  const k = process.env.ENCRYPTION_MASTER_KEY ?? "";
+  if (!/^[0-9a-fA-F]{64}$/.test(k)) {
+    return toFriendlyError(new Error("Invalid master key"));
+  }
+  return null;
+}
+
 async function ensureProfile(userId: string, email: string, name: string | null) {
   await prisma.userProfile.upsert({
     where: { id: userId },
@@ -89,46 +122,51 @@ export async function onboardingSaveAiKey(
   const key = String(formData.get("apiKey") ?? "").trim();
   if (!organizationId || !key) return { error: "Faltan datos." };
 
-  await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN"]);
   if (!["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER"].includes(provider)) {
     return { error: "Proveedor no válido." };
   }
 
-  const env = getServerEnv();
-  const enc = encryptSecret(key, env.ENCRYPTION_MASTER_KEY);
-  const fp = fingerprintSecret(key);
+  try {
+    await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN"]);
 
-  await prisma.encryptedApiKey.upsert({
-    where: {
-      organizationId_provider: { organizationId, provider },
-    },
-    create: {
+    const env = getServerEnv();
+    const enc = encryptSecret(key, env.ENCRYPTION_MASTER_KEY);
+    const fp = fingerprintSecret(key);
+
+    await prisma.encryptedApiKey.upsert({
+      where: {
+        organizationId_provider: { organizationId, provider },
+      },
+      create: {
+        organizationId,
+        provider,
+        label: `${provider} key`,
+        encryptedPayload: enc.ciphertext,
+        iv: enc.iv,
+        authTag: enc.authTag,
+        keyFingerprint: fp,
+      },
+      update: {
+        encryptedPayload: enc.ciphertext,
+        iv: enc.iv,
+        authTag: enc.authTag,
+        keyFingerprint: fp,
+        isActive: true,
+        revokedAt: null,
+        lastRotatedAt: new Date(),
+      },
+    });
+
+    await writeAuditLog({
       organizationId,
-      provider,
-      label: `${provider} key`,
-      encryptedPayload: enc.ciphertext,
-      iv: enc.iv,
-      authTag: enc.authTag,
-      keyFingerprint: fp,
-    },
-    update: {
-      encryptedPayload: enc.ciphertext,
-      iv: enc.iv,
-      authTag: enc.authTag,
-      keyFingerprint: fp,
-      isActive: true,
-      revokedAt: null,
-      lastRotatedAt: new Date(),
-    },
-  });
-
-  await writeAuditLog({
-    organizationId,
-    actorUserId: userId,
-    action: "api_key.upsert",
-    resourceType: "EncryptedApiKey",
-    metadata: { provider },
-  });
+      actorUserId: userId,
+      action: "api_key.upsert",
+      resourceType: "EncryptedApiKey",
+      metadata: { provider },
+    });
+  } catch (e) {
+    return toFriendlyError(e);
+  }
 
   revalidatePath("/dashboard/onboarding");
   return { ok: true };
@@ -144,6 +182,11 @@ export async function onboardingSaveBuffer(
   const profileId = String(formData.get("bufferProfileId") ?? "").trim();
   const editframeKey = String(formData.get("editframeKey") ?? "").trim();
   if (!organizationId) return { error: "Organización no válida." };
+
+  if (editframeKey || token) {
+    const keyErr = encryptionKeyError();
+    if (keyErr) return keyErr;
+  }
 
   await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN"]);
 

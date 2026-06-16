@@ -17,14 +17,22 @@ export async function GET() {
     ? await checkSchema()
     : { ok: false, kind: "unreachable", error: "skipped: database unreachable" };
 
+  // ENCRYPTION_MASTER_KEY must be 64 hex chars (32 bytes). A present-but-invalid
+  // value passes a simple presence check but breaks secret encryption (e.g. the
+  // onboarding "save API key" step), so report its format here.
+  const encryptionKeyValid = /^[0-9a-fA-F]{64}$/.test(
+    process.env.ENCRYPTION_MASTER_KEY ?? ""
+  );
+
   const env = {
     DATABASE_URL: Boolean(process.env.DATABASE_URL),
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY),
     CLERK_SECRET_KEY: Boolean(process.env.CLERK_SECRET_KEY),
     ENCRYPTION_MASTER_KEY: Boolean(process.env.ENCRYPTION_MASTER_KEY),
+    ENCRYPTION_MASTER_KEY_valid: encryptionKeyValid,
     NEXT_PUBLIC_APP_URL: Boolean(process.env.NEXT_PUBLIC_APP_URL),
   };
 
-  const ok = db.ok && schema.ok;
+  const ok = db.ok && schema.ok && encryptionKeyValid;
   return NextResponse.json({ ok, db, schema, env }, { status: ok ? 200 : 503 });
 }
