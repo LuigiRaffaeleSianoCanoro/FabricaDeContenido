@@ -182,11 +182,10 @@ export async function onboardingSaveBuffer(
   const profileId = String(formData.get("bufferProfileId") ?? "").trim();
   const editframeKey = String(formData.get("editframeKey") ?? "").trim();
   if (!organizationId) return { error: "Organización no válida." };
+  if (!token) return { error: "Pegá tu API key de Buffer para continuar." };
 
-  if (editframeKey || token) {
-    const keyErr = encryptionKeyError();
-    if (keyErr) return keyErr;
-  }
+  const keyErr = encryptionKeyError();
+  if (keyErr) return keyErr;
 
   await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN"]);
 
