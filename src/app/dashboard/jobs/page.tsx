@@ -5,6 +5,7 @@ import { markJobDeadLetter, retryJobAction } from "@/app/dashboard/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
+import { requireOnboardingComplete } from "@/lib/auth/onboarding-status";
 import { requireSession } from "@/lib/auth/require-session";
 import { prisma } from "@/lib/db/prisma";
 
@@ -20,6 +21,7 @@ function jobBadge(status: string) {
 
 export default async function JobsPage() {
   const { userId } = await requireSession();
+  await requireOnboardingComplete();
   const org = await getActiveOrganizationForUser(userId);
   if (!org) redirect("/dashboard/onboarding");
 

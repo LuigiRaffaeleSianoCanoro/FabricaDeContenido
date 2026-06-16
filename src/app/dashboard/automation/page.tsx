@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
+import { requireOnboardingComplete } from "@/lib/auth/onboarding-status";
 import { requireSession } from "@/lib/auth/require-session";
 import { prisma } from "@/lib/db/prisma";
 import { EDGE_VOICES, DEFAULT_VOICE } from "@/lib/tts/voices";
@@ -22,6 +23,7 @@ function scheduleToText(value: unknown): string {
 
 export default async function AutomationPage() {
   const { userId } = await requireSession();
+  await requireOnboardingComplete();
   const org = await getActiveOrganizationForUser(userId);
   if (!org) redirect("/dashboard/onboarding");
 

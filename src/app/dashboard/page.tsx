@@ -15,6 +15,7 @@ import { requestPipelineRun } from "@/app/dashboard/actions";
 import { buttonVariants } from "@/components/ui/button";
 import { Button } from "@/components/ui/button";
 import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
+import { requireOnboardingComplete } from "@/lib/auth/onboarding-status";
 import { requireSession } from "@/lib/auth/require-session";
 import { prisma } from "@/lib/db/prisma";
 import { cn } from "@/lib/utils";
@@ -52,6 +53,7 @@ const quickActions = [
 
 export default async function DashboardHomePage() {
   const { user, userId } = await requireSession();
+  await requireOnboardingComplete();
   const email = user.emailAddresses[0]?.emailAddress ?? "";
   const name = email.split("@")[0];
 
