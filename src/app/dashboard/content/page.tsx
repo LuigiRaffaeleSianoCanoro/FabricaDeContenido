@@ -5,11 +5,13 @@ import { approveGeneratedContent, rejectGeneratedContent } from "@/app/dashboard
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
+import { requireOnboardingComplete } from "@/lib/auth/onboarding-status";
 import { requireSession } from "@/lib/auth/require-session";
 import { prisma } from "@/lib/db/prisma";
 
 export default async function ContentPage() {
   const { userId } = await requireSession();
+  await requireOnboardingComplete();
   const org = await getActiveOrganizationForUser(userId);
   if (!org) redirect("/dashboard/onboarding");
 

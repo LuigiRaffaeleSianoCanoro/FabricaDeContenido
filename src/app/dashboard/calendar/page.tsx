@@ -3,6 +3,7 @@ import { Calendar } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
+import { requireOnboardingComplete } from "@/lib/auth/onboarding-status";
 import { requireSession } from "@/lib/auth/require-session";
 import { prisma } from "@/lib/db/prisma";
 
@@ -18,6 +19,7 @@ const DOW = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
 export default async function CalendarPage() {
   const { userId } = await requireSession();
+  await requireOnboardingComplete();
   const org = await getActiveOrganizationForUser(userId);
   if (!org) redirect("/dashboard/onboarding");
 

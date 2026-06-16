@@ -8,6 +8,7 @@ import {
   listUserOrganizations,
   type OrgWithRole,
 } from "@/lib/auth/active-org";
+import { getOnboardingStatus } from "@/lib/auth/onboarding-status";
 import { checkDatabase, classifyDbError } from "@/lib/db/health";
 
 export const dynamic = "force-dynamic";
@@ -81,12 +82,20 @@ export default async function DashboardLayout({
 
   let orgs: OrgWithRole[] = [];
   let active: { id: string } | null = null;
+  let complete = false;
   try {
     orgs = await listUserOrganizations(user.id);
     active = await getActiveOrganizationForUser(user.id);
+    complete = (await getOnboardingStatus(user.id)).complete;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return <DbConfigScreen kind={classifyDbError(message)} error={message} />;
+  }
+
+  // While onboarding is incomplete, hide the sidebar/tabs and let the guided
+  // full-screen onboarding flow take over (other routes redirect to it).
+  if (!complete) {
+    return <>{children}</>;
   }
 
   return (

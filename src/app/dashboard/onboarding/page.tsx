@@ -1,114 +1,54 @@
-import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { CheckCircle2, Circle, Rocket } from "lucide-react";
+import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
-import {
-  getActiveOrganizationForUser,
-} from "@/lib/auth/active-org";
-import { prisma } from "@/lib/db/prisma";
+import { AuroraBackdrop } from "@/components/landing/aurora-backdrop";
+import { DashboardSignOut } from "@/components/dashboard/dashboard-sign-out";
+import { getOnboardingStatus } from "@/lib/auth/onboarding-status";
+import { requireSession } from "@/lib/auth/require-session";
 
 import { OnboardingWizard } from "./onboarding-wizard";
 
-const AI_PROVIDERS = ["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER"] as const;
+export const dynamic = "force-dynamic";
 
 export default async function OnboardingPage() {
-  const user = await currentUser();
-  if (!user) redirect("/login");
+  const { userId } = await requireSession();
+  const status = await getOnboardingStatus(userId);
 
-  const activeOrg = await getActiveOrganizationForUser(user.id);
-
-  let initialStep = 1;
-  const initialOrgId: string | null = activeOrg?.id ?? null;
-
-  if (activeOrg) {
-    const hasAi = await prisma.encryptedApiKey.findFirst({
-      where: {
-        organizationId: activeOrg.id,
-        provider: { in: [...AI_PROVIDERS] },
-        isActive: true,
-        revokedAt: null,
-      },
-    });
-    const hasConfig = await prisma.contentConfig.findFirst({
-      where: { organizationId: activeOrg.id, isDefault: true },
-    });
-
-    if (hasConfig) {
-      redirect("/dashboard");
-    }
-    if (hasAi) {
-      initialStep = 3;
-    } else {
-      initialStep = 2;
-    }
+  if (status.complete) {
+    redirect("/dashboard");
   }
 
-  const stepLabels = [
-    "Cuenta y organización",
-    "Clave de IA",
-    "Buffer (opcional)",
-    "Preferencias de contenido",
-  ];
-
-  const stepDone = [initialStep > 1, initialStep > 2, initialStep > 3, false];
-
   return (
-    <div className="relative flex h-full flex-col p-6 lg:p-8">
-      <div className="pointer-events-none absolute -right-40 -top-40 size-80 rounded-full bg-primary/10 blur-3xl" />
+    <div className="relative isolate flex min-h-[100svh] w-full flex-col overflow-x-hidden bg-[#08060e] text-white">
+      <AuroraBackdrop />
 
-      <div className="relative z-10 mb-8">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Rocket className="size-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Onboarding</h1>
-            <p className="text-sm text-muted-foreground">
-              Conecta IA, Buffer y define el tono de tu contenido
-            </p>
-          </div>
-        </div>
-      </div>
+      <header className="relative z-10 flex h-16 shrink-0 items-center justify-between px-6 lg:px-12">
+        <Link href="/" className="group flex items-center gap-3">
+          <span className="flex size-10 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/30 transition-transform group-hover:scale-110">
+            <svg viewBox="0 0 24 24" className="size-5 text-primary-foreground" fill="currentColor">
+              <path d="M4 19V9l6-4v4l6-4v4l4-2.67V19H4z" />
+            </svg>
+          </span>
+          <span className="text-lg font-bold tracking-tight">Fábrica</span>
+        </Link>
+        <DashboardSignOut />
+      </header>
 
-      <div className="relative z-10 mx-auto w-full max-w-lg space-y-6">
-        <div className="glass animate-scale-in rounded-2xl p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-semibold">Progreso</h2>
-            <Badge variant="secondary" className="bg-primary/10 text-primary">
-              Paso {initialStep} de 4
-            </Badge>
-          </div>
-          <div className="space-y-3">
-            {stepLabels.map((label, index) => (
-              <div
-                key={label}
-                className="flex items-center gap-3 rounded-xl p-2 transition-colors hover:bg-muted/30"
-              >
-                <div className="flex size-8 shrink-0 items-center justify-center">
-                  {stepDone[index] ? (
-                    <CheckCircle2 className="size-6 text-primary" />
-                  ) : (
-                    <Circle className="size-6 text-muted-foreground/35" />
-                  )}
-                </div>
-                <span
-                  className={
-                    index + 1 === initialStep ? "font-medium text-foreground" : "text-muted-foreground"
-                  }
-                >
-                  {index + 1}. {label}
-                </span>
-                {index + 1 === initialStep && (
-                  <Badge className="ml-auto bg-primary text-primary-foreground">Actual</Badge>
-                )}
-              </div>
-            ))}
-          </div>
+      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-8 sm:px-6">
+        <div className="mb-7 max-w-xl text-center">
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-medium text-white/80 backdrop-blur">
+            Configuración guiada
+          </span>
+          <h1 className="mt-4 text-balance text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
+            Pongamos tu <span className="gradient-text-animated">fábrica</span> en marcha
+          </h1>
+          <p className="mt-2 text-sm text-white/55">
+            Te guiamos en cada paso. En minutos tu agente crea y publica contenido solo.
+          </p>
         </div>
 
-        <OnboardingWizard initialStep={initialStep} initialOrgId={initialOrgId} />
-      </div>
+        <OnboardingWizard initialStep={status.step} initialOrgId={status.organizationId} />
+      </main>
     </div>
   );
 }

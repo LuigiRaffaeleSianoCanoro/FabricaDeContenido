@@ -4,11 +4,13 @@ import { adminRetryWebhookEvent } from "@/app/dashboard/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { isPlatformAdminEmail } from "@/lib/auth/admin";
+import { requireOnboardingComplete } from "@/lib/auth/onboarding-status";
 import { requireSession } from "@/lib/auth/require-session";
 import { prisma } from "@/lib/db/prisma";
 
 export default async function AdminPage() {
   const { user } = await requireSession();
+  await requireOnboardingComplete();
   const email = user.emailAddresses[0]?.emailAddress ?? "";
 
   if (!isPlatformAdminEmail(email)) {
