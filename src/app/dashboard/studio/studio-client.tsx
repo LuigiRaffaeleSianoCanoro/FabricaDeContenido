@@ -59,7 +59,7 @@ export function StudioClient({
               className="flex w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm"
             />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="platform">Plataforma</Label>
               <select
@@ -102,7 +102,7 @@ export function StudioClient({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="imageSource">Imágenes de fondo</Label>
               <select
