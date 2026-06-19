@@ -2,7 +2,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { Database } from "lucide-react";
 
-import { AppSidebar } from "@/components/dashboard/app-sidebar";
+import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import {
   getActiveOrganizationForUser,
   listUserOrganizations,
@@ -99,15 +99,12 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background">
-      <AppSidebar
-        email={email}
-        organizations={orgs}
-        activeOrganizationId={active?.id ?? null}
-      />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <main className="flex-1 overflow-auto">{children}</main>
-      </div>
-    </div>
+    <DashboardShell
+      email={email}
+      organizations={orgs}
+      activeOrganizationId={active?.id ?? null}
+    >
+      {children}
+    </DashboardShell>
   );
 }
