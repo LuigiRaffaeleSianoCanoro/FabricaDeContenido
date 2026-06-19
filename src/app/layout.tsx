@@ -1,5 +1,5 @@
 import { ClerkProvider } from "@clerk/nextjs";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Space_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -19,6 +19,13 @@ export const metadata: Metadata = {
   title: "Fábrica de Contenido",
   description:
     "Plataforma SaaS para generación y publicación autónoma de contenido social con IA.",
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fbf8f2" },
+    { media: "(prefers-color-scheme: dark)", color: "#08060e" },
+  ],
 };
 
 export default function RootLayout({
