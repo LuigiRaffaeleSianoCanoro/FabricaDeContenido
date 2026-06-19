@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
 import { FileText, Sparkles, Video, MessageSquare } from "lucide-react";
 
-import { approveGeneratedContent, rejectGeneratedContent } from "@/app/dashboard/actions";
+import {
+  approveGeneratedContent,
+  publishGeneratedContent,
+  rejectGeneratedContent,
+} from "@/app/dashboard/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
@@ -112,6 +116,26 @@ export default async function ContentPage() {
                           <input type="hidden" name="id" value={row.id} />
                           <Button type="submit" size="sm" variant="outline">
                             Rechazar
+                          </Button>
+                        </form>
+                      </div>
+                    )}
+                    {row.status === "APPROVED" && (
+                      <div className="flex shrink-0 gap-2">
+                        <form action={publishGeneratedContent}>
+                          <input type="hidden" name="organizationId" value={org.id} />
+                          <input type="hidden" name="id" value={row.id} />
+                          <input type="hidden" name="publishNow" value="true" />
+                          <Button type="submit" size="sm" className="bg-primary">
+                            Publicar ahora
+                          </Button>
+                        </form>
+                        <form action={publishGeneratedContent}>
+                          <input type="hidden" name="organizationId" value={org.id} />
+                          <input type="hidden" name="id" value={row.id} />
+                          <input type="hidden" name="publishNow" value="false" />
+                          <Button type="submit" size="sm" variant="outline">
+                            Programar
                           </Button>
                         </form>
                       </div>

@@ -166,3 +166,55 @@ Rate limiting, validación de webhooks, reintentos/backoff, DLQ, borrado por org
 - **Inngest** debe estar conectado para que el cron del autopiloto se ejecute en producción
   (endpoint `/api/inngest`).
 - Cada org añade sus llaves (IA + Editframe + Buffer) y sincroniza canales.
+
+---
+
+## 8. Auditoría de "dead-ends" (jun 2026) y plan de cierre
+
+> El motor (prompt → guion → imágenes → voz → render → publicación → autopiloto) está
+> implementado, pero **faltaba el "tejido conectivo" de UX**: tras el onboarding el usuario
+> caía en un panel sin próximos pasos claros, y varios flujos terminaban en un callejón sin
+> salida. Esta sección documenta los huecos detectados y el plan para llegar a producto
+> terminado, ordenado por prioridad. Marcamos ✅ lo resuelto en esta tanda.
+
+### P0 — Conectar el producto (el usuario nuevo nunca debe quedar sin "siguiente paso")
+
+| # | Hueco | Estado |
+|---|-------|--------|
+| D1 | Tras el onboarding el panel mostraba un banner "Completá tu configuración → Comenzar" que **redirigía de vuelta al onboarding ya completado**. | ✅ Reemplazado por panel **"Próximos pasos"** dinámico (sincronizar Buffer / crear slideshow / activar autopiloto / revisar pendientes) con estado real. |
+| D2 | Las **quick actions** del panel apuntaban a Onboarding/Trabajos en vez de a las funciones núcleo (Studio, Automatización). | ✅ Quick actions ahora: Studio, Automatización, Contenido, Calendario. |
+| D3 | Contenido **APROBADO** sin `autoPost` quedaba estancado: **no había forma de publicar/agendar** desde la UI. | ✅ Acción `publishGeneratedContent` + botones **"Publicar ahora"** y **"Programar"** en contenido aprobado. |
+| D4 | CTA principal del panel disparaba el pipeline **legacy de hooks de texto** (off-promise vs. video). | ✅ Relabel "Generar hooks rápidos" + enlace directo al Studio para video. |
+| D5 | Sin worker de Inngest conectado, los disparos (`inngest.send`) **fallan en silencio**; no hay feedback. | ⏳ Pendiente: panel de salud de servicios + manejo de error visible (ver P2/M7). |
+
+### P1 — Reparar controles rotos / completar configuración
+
+| # | Hueco | Estado |
+|---|-------|--------|
+| D6 | Ajustes ofrecía proveedor **EDITFRAME** en el select pero la acción lo **rechazaba** (submit fallaba). | ✅ `settingsAddApiKey` ahora acepta `EDITFRAME`. |
+| D7 | El onboarding **no tenía campo para la API key de Editframe** (la acción ya la soportaba) → slideshows fallaban después. | ✅ Campo opcional de Editframe agregado al paso de Buffer. |
+| D8 | **Calendario read-only**: sin navegación de semanas. | ✅ Navegación semanal (`?week=` offset) con prev / Hoy / next. |
+| D9 | Publicación **a todos los canales** de Buffer, sin selección por contenido. | ⏳ Pendiente: selector de canales por publicación. |
+| D10 | `ScheduledPost.status` **nunca pasa a PUBLISHED** (no hay webhook/polling de Buffer) → métrica "Publicados" engañosa. | ⏳ Pendiente: reconciliación de estado Buffer + corregir métrica. |
+
+### P2 — Negocio, observabilidad y endurecimiento (producto "terminado")
+
+| # | Hueco | Estado |
+|---|-------|--------|
+| D11 | Sin páginas de **perfil / cuenta / facturación**; `Plan` y `UsageRecord` sin uso; `@upstash/ratelimit` sin cablear. | ⏳ Pendiente (Fase 6 / M5). |
+| D12 | **Gestión de miembros** incompleta: invitar requiere usuario preexistente; sin lista, cambio de rol ni baja; sin email de invitación. | ⏳ Pendiente. |
+| D13 | **RBAC** sólo en mutaciones; la UI no oculta controles de escritura a `VIEWER`; "Admin" visible para todos en el sidebar. | ⏳ Pendiente. |
+| D14 | **Sin vista de detalle de contenido** ni reproductor de video embebido. | ⏳ Pendiente. |
+| D15 | **Timezone** se guarda pero la agenda usa UTC. | ⏳ Pendiente (pulido transversal). |
+| D16 | **Sin borrados** (contenido, miembro, org, key salvo revoke). | ⏳ Pendiente. |
+| D17 | Modelos `Workflow`, `WebhookEndpoint`/`WebhookEvent` (entrega saliente) y `AuditLog` (write-only) **sin superficie de uso**. | ⏳ Pendiente / decidir si se retiran. |
+| D18 | **Panel de salud** (`/api/health` no reporta Inngest/R2/Buffer/Pexels) y observabilidad de jobs. | ⏳ Pendiente (M7). |
+| D19 | **Idempotencia** del autopiloto por `(config, slot)` usando `ContentJob.idempotencyKey`. | ⏳ Pendiente (M4). |
+
+### Orden sugerido para continuar
+1. **D5/D18** — visibilidad de servicios y errores (sin esto, todo "no hace nada" en silencio).
+2. **D10** — reconciliar estado de Buffer y arreglar métricas.
+3. **D9 + D14** — selección de canales y detalle de contenido con preview de video.
+4. **D12/D13** — miembros y RBAC en la UI.
+5. **D11** — planes/cuotas/billing (Stripe).
+6. **D15/D16/D17/D19** — pulidos y limpieza de modelos.

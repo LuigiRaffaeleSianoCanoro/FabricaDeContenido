@@ -1,7 +1,7 @@
 import Link from "next/link";
 import {
-  Rocket,
-  Briefcase,
+  Film,
+  Repeat,
   Calendar,
   FileText,
   ArrowRight,
@@ -12,42 +12,41 @@ import {
 import { redirect } from "next/navigation";
 
 import { requestPipelineRun } from "@/app/dashboard/actions";
-import { buttonVariants } from "@/components/ui/button";
+import { NextSteps } from "@/components/dashboard/next-steps";
 import { Button } from "@/components/ui/button";
 import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
 import { requireOnboardingComplete } from "@/lib/auth/onboarding-status";
 import { requireSession } from "@/lib/auth/require-session";
 import { prisma } from "@/lib/db/prisma";
-import { cn } from "@/lib/utils";
 
 const quickActions = [
   {
-    title: "Onboarding",
-    description: "Conecta proveedor de IA y Buffer.",
-    href: "/dashboard/onboarding",
-    icon: Rocket,
+    title: "Studio",
+    description: "Generá un slideshow con IA.",
+    href: "/dashboard/studio",
+    icon: Film,
     color: "from-orange-500/20 to-orange-600/10",
   },
   {
-    title: "Trabajos",
-    description: "Monitorea ejecuciones Inngest.",
-    href: "/dashboard/jobs",
-    icon: Briefcase,
+    title: "Automatización",
+    description: "Configurá el autopiloto.",
+    href: "/dashboard/automation",
+    icon: Repeat,
     color: "from-orange-400/20 to-orange-500/10",
   },
   {
-    title: "Calendario",
-    description: "Programa publicaciones.",
-    href: "/dashboard/calendar",
-    icon: Calendar,
-    color: "from-orange-500/20 to-orange-400/10",
-  },
-  {
     title: "Contenido",
-    description: "Genera contenido con IA.",
+    description: "Revisá y aprobá tu contenido.",
     href: "/dashboard/content",
     icon: FileText,
     color: "from-orange-600/20 to-orange-500/10",
+  },
+  {
+    title: "Calendario",
+    description: "Mirá tus publicaciones programadas.",
+    href: "/dashboard/calendar",
+    icon: Calendar,
+    color: "from-orange-500/20 to-orange-400/10",
   },
 ];
 
@@ -62,7 +61,15 @@ export default async function DashboardHomePage() {
     redirect("/dashboard/onboarding");
   }
 
-  const [contentCount, activeJobs, scheduledCount, publishedCount] = await Promise.all([
+  const [
+    contentCount,
+    activeJobs,
+    scheduledCount,
+    publishedCount,
+    channelCount,
+    pendingApproval,
+    defaultConfig,
+  ] = await Promise.all([
     prisma.generatedContent.count({ where: { organizationId: org.id } }),
     prisma.contentJob.count({
       where: {
@@ -75,6 +82,16 @@ export default async function DashboardHomePage() {
     }),
     prisma.scheduledPost.count({
       where: { organizationId: org.id, status: "PUBLISHED" },
+    }),
+    prisma.socialAccount.count({
+      where: { organizationId: org.id, platform: "buffer", isActive: true },
+    }),
+    prisma.generatedContent.count({
+      where: { organizationId: org.id, status: "PENDING_APPROVAL" },
+    }),
+    prisma.contentConfig.findFirst({
+      where: { organizationId: org.id, isDefault: true },
+      select: { isAutopilotActive: true },
     }),
   ]);
 
@@ -123,16 +140,24 @@ export default async function DashboardHomePage() {
 
       <div className="relative z-10 mb-8">
         <div className="glass gradient-border overflow-hidden rounded-2xl p-5">
-          <h3 className="mb-3 font-semibold">Generar contenido</h3>
+          <h3 className="mb-3 font-semibold">Generar hooks rápidos</h3>
           <p className="mb-4 text-sm text-muted-foreground">
-            Lanza el pipeline Inngest (hooks con IA según tu ContentConfig).
+            Genera ideas de texto con IA según tu configuración. Para videos, usá el Studio.
           </p>
-          <form action={requestPipelineRun} className="flex flex-wrap items-center gap-3">
-            <input type="hidden" name="organizationId" value={org.id} />
-            <Button type="submit" className="orange-glow bg-primary font-semibold text-primary-foreground">
-              Ejecutar pipeline
-            </Button>
-          </form>
+          <div className="flex flex-wrap items-center gap-3">
+            <form action={requestPipelineRun}>
+              <input type="hidden" name="organizationId" value={org.id} />
+              <Button type="submit" className="orange-glow bg-primary font-semibold text-primary-foreground">
+                Generar hooks
+              </Button>
+            </form>
+            <Link
+              href="/dashboard/studio"
+              className="text-sm font-medium text-primary transition-colors hover:text-primary/80"
+            >
+              Ir al Studio →
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -163,29 +188,12 @@ export default async function DashboardHomePage() {
       </div>
 
       <div className="relative z-10 mt-8">
-        <div className="glass gradient-border overflow-hidden rounded-2xl p-6">
-          <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
-            <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
-              <Rocket className="size-7" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold">Completa tu configuración</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Conecta tus proveedores de IA y redes para empezar a generar contenido.
-              </p>
-            </div>
-            <Link
-              href="/dashboard/onboarding"
-              className={cn(
-                buttonVariants({ size: "lg" }),
-                "orange-glow shrink-0 gap-2 bg-primary font-semibold text-primary-foreground hover:bg-primary/90",
-              )}
-            >
-              Comenzar
-              <ArrowRight className="size-4" />
-            </Link>
-          </div>
-        </div>
+        <NextSteps
+          channelsSynced={channelCount > 0}
+          hasContent={contentCount > 0}
+          autopilotActive={Boolean(defaultConfig?.isAutopilotActive)}
+          pendingApproval={pendingApproval}
+        />
       </div>
     </div>
   );

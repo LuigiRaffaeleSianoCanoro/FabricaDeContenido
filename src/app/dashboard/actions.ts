@@ -56,7 +56,7 @@ export async function settingsAddApiKey(formData: FormData) {
   if (!organizationId || !key) throw new Error("Faltan datos");
 
   await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN"]);
-  if (!["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER", "BUFFER"].includes(provider)) {
+  if (!["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER", "BUFFER", "EDITFRAME"].includes(provider)) {
     throw new Error("Proveedor no soportado");
   }
 
@@ -173,6 +173,49 @@ export async function approveGeneratedContent(formData: FormData) {
       data: { organizationId, generatedContentId: id },
     });
   }
+
+  revalidatePath("/dashboard/content");
+}
+
+export async function publishGeneratedContent(formData: FormData) {
+  const { userId } = await requireSession();
+  const organizationId = String(formData.get("organizationId") ?? "").trim();
+  const id = String(formData.get("id") ?? "").trim();
+  const publishNow = formData.get("publishNow") === "true";
+  if (!organizationId || !id) throw new Error("Datos inválidos");
+
+  await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN", "MEMBER"]);
+
+  const gc = await prisma.generatedContent.findFirst({
+    where: { id, organizationId },
+    select: { id: true, status: true },
+  });
+  if (!gc) throw new Error("Contenido no encontrado");
+  if (gc.status !== "APPROVED") {
+    throw new Error("Solo se puede publicar contenido aprobado.");
+  }
+
+  const channels = await prisma.socialAccount.count({
+    where: { organizationId, platform: "buffer", isActive: true },
+  });
+  if (channels === 0) {
+    throw new Error(
+      "No hay canales de Buffer sincronizados. Conectá Buffer y sincronizá tus canales en Ajustes.",
+    );
+  }
+
+  await inngest.send({
+    name: "content/publish.requested",
+    data: { organizationId, generatedContentId: id, publishNow },
+  });
+
+  await writeAuditLog({
+    organizationId,
+    actorUserId: userId,
+    action: publishNow ? "content.publish_now" : "content.schedule",
+    resourceType: "GeneratedContent",
+    resourceId: id,
+  });
 
   revalidatePath("/dashboard/content");
 }
