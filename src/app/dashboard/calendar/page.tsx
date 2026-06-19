@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Calendar } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { WeekNav } from "@/components/dashboard/week-nav";
 import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
 import { requireOnboardingComplete } from "@/lib/auth/onboarding-status";
 import { requireSession } from "@/lib/auth/require-session";
@@ -17,13 +18,20 @@ function startOfIsoWeek(d: Date): Date {
 
 const DOW = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
-export default async function CalendarPage() {
+export default async function CalendarPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ week?: string }>;
+}) {
   const { userId } = await requireSession();
   await requireOnboardingComplete();
   const org = await getActiveOrganizationForUser(userId);
   if (!org) redirect("/dashboard/onboarding");
 
+  const weekOffset = Math.trunc(Number((await searchParams).week ?? "0")) || 0;
+
   const weekStart = startOfIsoWeek(new Date());
+  weekStart.setDate(weekStart.getDate() + weekOffset * 7);
   const weekEnd = new Date(weekStart.getTime() + 7 * 86400000);
 
   const posts = await prisma.scheduledPost.findMany({
@@ -69,11 +77,16 @@ export default async function CalendarPage() {
 
       <div className="relative z-10 flex-1">
         <div className="glass animate-scale-in rounded-2xl p-6">
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="capitalize font-semibold">{title}</h2>
-            <Badge variant="secondary" className="bg-primary/10 text-primary">
-              Semana actual
-            </Badge>
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <h2 className="capitalize font-semibold">{title}</h2>
+              {weekOffset === 0 && (
+                <Badge variant="secondary" className="bg-primary/10 text-primary">
+                  Semana actual
+                </Badge>
+              )}
+            </div>
+            <WeekNav weekOffset={weekOffset} />
           </div>
 
           <div className="grid grid-cols-7 gap-2">
