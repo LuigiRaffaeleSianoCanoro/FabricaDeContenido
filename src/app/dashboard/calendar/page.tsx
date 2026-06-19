@@ -76,7 +76,8 @@ export default async function CalendarPage() {
             </Badge>
           </div>
 
-          <div className="grid grid-cols-7 gap-2">
+          <div className="-mx-2 overflow-x-auto px-2 pb-1">
+          <div className="grid min-w-[34rem] grid-cols-7 gap-2">
             {days.map((dt, i) => {
               const list = byDay.get(dt.toDateString()) ?? [];
               const isToday = dt.toDateString() === new Date().toDateString();
@@ -107,6 +108,7 @@ export default async function CalendarPage() {
                 </div>
               );
             })}
+          </div>
           </div>
         </div>
       </div>
