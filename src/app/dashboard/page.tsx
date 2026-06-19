@@ -86,7 +86,7 @@ export default async function DashboardHomePage() {
   ];
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden p-6 lg:p-8">
+    <div className="relative flex min-h-full flex-col overflow-hidden p-6 lg:p-8">
       <div className="pointer-events-none absolute -right-40 -top-40 size-80 rounded-full bg-primary/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 -left-40 size-60 rounded-full bg-primary/5 blur-3xl" />
 
