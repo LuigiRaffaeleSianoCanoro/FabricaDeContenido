@@ -2,11 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const isProtectedRoute = (pathname: string) => pathname.startsWith("/dashboard");
 
+import { isClerkConfigured } from "@/lib/auth/clerk-config";
+
 function clerkEnvMissing(): boolean {
-  return (
-    !process.env.CLERK_SECRET_KEY?.trim() ||
-    !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim()
-  );
+  return !isClerkConfigured() || !process.env.CLERK_SECRET_KEY?.trim();
 }
 
 async function withClerk(req: NextRequest) {

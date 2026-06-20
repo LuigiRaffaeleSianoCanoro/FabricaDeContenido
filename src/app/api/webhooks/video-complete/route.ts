@@ -16,7 +16,11 @@ const bodySchema = z.object({
  */
 export async function POST(req: Request) {
   const secret = process.env.VIDEO_WEBHOOK_SECRET?.trim();
-  if (secret) {
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json({ error: "Webhook not configured" }, { status: 503 });
+    }
+  } else {
     const header = req.headers.get("x-fabrica-webhook-secret");
     if (header !== secret) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -74,8 +78,9 @@ export async function POST(req: Request) {
   ]);
 
   const cfg = render.job.organization.contentConfigs[0];
-  if (cfg?.autoPost) {
+  if (cfg?.autoPost && !cfg.requireApproval) {
     for (const gc of render.generatedContent) {
+      if (gc.status !== "APPROVED") continue;
       await inngest.send({
         name: "content/publish.requested",
         data: { organizationId: render.organizationId, generatedContentId: gc.id },

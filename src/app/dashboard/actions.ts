@@ -153,6 +153,9 @@ export async function approveGeneratedContent(formData: FormData) {
     where: { id, organizationId },
   });
   if (!gc) throw new Error("Contenido no encontrado");
+  if (gc.status !== "PENDING_APPROVAL") {
+    throw new Error("Solo se puede aprobar contenido pendiente de revisión.");
+  }
 
   await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN", "MEMBER"]);
 
@@ -163,11 +166,11 @@ export async function approveGeneratedContent(formData: FormData) {
 
   const approved: ContentStatus = "APPROVED";
   await prisma.generatedContent.update({
-    where: { id },
+    where: { id, organizationId },
     data: { status: approved, approvedAt: new Date(), approvedBy: userId },
   });
 
-  if (cfg?.autoPost) {
+  if (cfg?.autoPost && !cfg.requireApproval) {
     await inngest.send({
       name: "content/publish.requested",
       data: { organizationId, generatedContentId: id },
@@ -191,6 +194,9 @@ export async function publishGeneratedContent(formData: FormData) {
     select: { id: true, status: true },
   });
   if (!gc) throw new Error("Contenido no encontrado");
+  if (gc.status === "SCHEDULED" || gc.status === "PUBLISHED") {
+    throw new Error("Este contenido ya fue publicado o agendado.");
+  }
   if (gc.status !== "APPROVED") {
     throw new Error("Solo se puede publicar contenido aprobado.");
   }

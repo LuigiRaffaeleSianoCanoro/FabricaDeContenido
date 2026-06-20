@@ -1,6 +1,7 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Space_Mono } from "next/font/google";
+import { isClerkConfigured } from "@/lib/auth/clerk-config";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -35,9 +36,7 @@ export default function RootLayout({
 }>) {
   // Only mount Clerk when configured so the public marketing page renders even
   // without auth credentials. Protected routes are still gated by the proxy.
-  const clerkEnabled = Boolean(
-    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim()
-  );
+  const clerkEnabled = isClerkConfigured();
 
   return (
     <html

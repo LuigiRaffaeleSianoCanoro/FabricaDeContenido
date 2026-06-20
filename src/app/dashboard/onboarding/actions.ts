@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { getServerEnv } from "@/config/env.server";
+import { setActiveOrganizationCookie } from "@/lib/auth/active-org";
 import { assertOrgRole } from "@/lib/auth/rbac";
 import { requireSession } from "@/lib/auth/require-session";
 import { prisma } from "@/lib/db/prisma";
@@ -107,6 +108,8 @@ export async function onboardingCreateOrg(
     resourceId: org.id,
     metadata: { slug },
   });
+
+  await setActiveOrganizationCookie(org.id);
 
   revalidatePath("/dashboard/onboarding");
   return { ok: true, organizationId: org.id };

@@ -238,6 +238,12 @@ export const publishToBuffer = inngest.createFunction(
     if (!gc) {
       throw new Error("GeneratedContent not found");
     }
+    if (gc.status === "SCHEDULED" || gc.status === "PUBLISHED") {
+      return { ok: true, skipped: true, reason: "already_published" };
+    }
+    if (gc.status !== "APPROVED") {
+      throw new Error(`Content must be APPROVED to publish (current: ${gc.status})`);
+    }
 
     const tokenRow = await step.run("resolve-buffer-token", () => getBufferAccessTokenForOrg(organizationId));
     if (!tokenRow) {
