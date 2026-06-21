@@ -1,3 +1,4 @@
+import { AiProviderError } from "../errors";
 import type {
   AIProvider,
   AIProviderId,
@@ -27,8 +28,30 @@ export abstract class BaseProvider implements AIProvider {
       systemPrompt: [params.systemPrompt, jsonHint].filter(Boolean).join("\n\n"),
       userPrompt: params.userPrompt,
     });
-    const raw = JSON.parse(res.content) as unknown;
-    return params.schema.parse(raw);
+    let raw: unknown;
+    try {
+      raw = JSON.parse(res.content);
+    } catch (cause) {
+      throw new AiProviderError({
+        provider: this.providerId,
+        code: "bad_response",
+        model: params.model,
+        detail: res.content.slice(0, 500),
+        cause,
+      });
+    }
+
+    try {
+      return params.schema.parse(raw);
+    } catch (cause) {
+      throw new AiProviderError({
+        provider: this.providerId,
+        code: "bad_response",
+        model: params.model,
+        detail: cause instanceof Error ? cause.message : String(cause),
+        cause,
+      });
+    }
   }
 
   async *generateStreaming(params: TextGenerationParams): AsyncIterable<string> {

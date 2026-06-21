@@ -1,3 +1,4 @@
+import { AiProviderError, aiErrorFromResponse } from "../errors";
 import type { TextGenerationParams, TextGenerationResult } from "../types";
 import { BaseProvider } from "./base";
 
@@ -10,28 +11,39 @@ export class OpenRouterProvider extends BaseProvider {
   }
 
   protected async chatCompletion(params: TextGenerationParams): Promise<TextGenerationResult> {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    let res: Response;
+    try {
+      res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: params.model,
+          messages: [
+            ...(params.systemPrompt
+              ? [{ role: "system" as const, content: params.systemPrompt }]
+              : []),
+            { role: "user" as const, content: params.userPrompt },
+          ],
+          temperature: params.temperature ?? 0.7,
+          max_tokens: params.maxTokens,
+          ...(params.jsonMode ? { response_format: { type: "json_object" } } : {}),
+        }),
+      });
+    } catch (cause) {
+      throw new AiProviderError({
+        provider: this.providerId,
+        code: "network",
         model: params.model,
-        messages: [
-          ...(params.systemPrompt
-            ? [{ role: "system" as const, content: params.systemPrompt }]
-            : []),
-          { role: "user" as const, content: params.userPrompt },
-        ],
-        temperature: params.temperature ?? 0.7,
-        max_tokens: params.maxTokens,
-        ...(params.jsonMode ? { response_format: { type: "json_object" } } : {}),
-      }),
-    });
+        detail: String(cause),
+        cause,
+      });
+    }
 
     if (!res.ok) {
-      throw new Error(`OpenRouter error ${res.status}: ${await res.text()}`);
+      throw await aiErrorFromResponse(this.providerId, res, params.model);
     }
 
     const data = (await res.json()) as {

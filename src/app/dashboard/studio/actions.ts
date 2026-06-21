@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { userMessageForAiError } from "@/lib/ai/errors";
 import { assertOrgRole } from "@/lib/auth/rbac";
 import { requireSession } from "@/lib/auth/require-session";
 import { inngest } from "@/lib/inngest/client";
@@ -61,7 +62,11 @@ export async function generateSlideshowPlan(
     const plan = SlideshowPlanSchema.parse(planUnknown);
     return { ok: true, plan, ...passthrough };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "No se pudo generar el guion.", ...passthrough };
+    console.error("[studio] generateSlideshowPlan failed", err);
+    return {
+      error: userMessageForAiError(err, "No se pudo generar el guion. Inténtalo de nuevo."),
+      ...passthrough,
+    };
   }
 }
 

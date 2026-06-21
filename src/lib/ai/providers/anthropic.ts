@@ -1,3 +1,4 @@
+import { AiProviderError, aiErrorFromResponse } from "../errors";
 import type { TextGenerationParams, TextGenerationResult } from "../types";
 import { BaseProvider } from "./base";
 
@@ -14,24 +15,35 @@ export class AnthropicProvider extends BaseProvider {
 
   protected async chatCompletion(params: TextGenerationParams): Promise<TextGenerationResult> {
     const url = `${this.options.baseUrl ?? "https://api.anthropic.com/v1"}/messages`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "x-api-key": this.apiKey,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "x-api-key": this.apiKey,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: params.model,
+          max_tokens: params.maxTokens ?? 1024,
+          temperature: params.temperature ?? 0.7,
+          system: params.systemPrompt,
+          messages: [{ role: "user", content: params.userPrompt }],
+        }),
+      });
+    } catch (cause) {
+      throw new AiProviderError({
+        provider: this.providerId,
+        code: "network",
         model: params.model,
-        max_tokens: params.maxTokens ?? 1024,
-        temperature: params.temperature ?? 0.7,
-        system: params.systemPrompt,
-        messages: [{ role: "user", content: params.userPrompt }],
-      }),
-    });
+        detail: String(cause),
+        cause,
+      });
+    }
 
     if (!res.ok) {
-      throw new Error(`Anthropic error ${res.status}: ${await res.text()}`);
+      throw await aiErrorFromResponse(this.providerId, res, params.model);
     }
 
     const data = (await res.json()) as {
