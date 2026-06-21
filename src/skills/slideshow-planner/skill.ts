@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { defaultTextModel } from "@/lib/ai/models";
+
 import type { SkillDefinition } from "../types";
 
 export const SlideSchema = z.object({
@@ -29,21 +31,6 @@ export const SlideshowPlanSchema = z.object({
 export type SlideshowPlan = z.infer<typeof SlideshowPlanSchema>;
 export type Slide = z.infer<typeof SlideSchema>;
 
-function pickModel(providerId: string): string {
-  switch (providerId) {
-    case "openai":
-      return "gpt-4o-mini";
-    case "anthropic":
-      return "claude-3-5-haiku-20241022";
-    case "gemini":
-      return "gemini-2.0-flash";
-    case "openrouter":
-      return "openai/gpt-4o-mini";
-    default:
-      return "gpt-4o-mini";
-  }
-}
-
 export const slideshowPlannerSkill: SkillDefinition = {
   id: "slideshow-planner",
   name: "Slideshow planner",
@@ -53,7 +40,7 @@ export const slideshowPlannerSkill: SkillDefinition = {
   outputSchema: SlideshowPlanSchema,
   async execute(inputUnknown, ctx) {
     const input = SlideshowPlannerInputSchema.parse(inputUnknown);
-    const model = pickModel(ctx.ai.providerId);
+    const model = defaultTextModel(ctx.ai.providerId);
 
     const systemPrompt = [
       "Eres un director creativo experto en slideshows animados para redes sociales.",

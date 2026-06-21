@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { defaultTextModel } from "@/lib/ai/models";
+
 import type { SkillDefinition } from "../types";
 
 export const HookGeneratorInputSchema = z.object({
@@ -21,22 +23,7 @@ export const hookGeneratorSkill: SkillDefinition = {
   outputSchema: HookGeneratorOutputSchema,
   async execute(inputUnknown, ctx) {
     const input = HookGeneratorInputSchema.parse(inputUnknown);
-    const model = (() => {
-      switch (ctx.ai.providerId) {
-        case "openai":
-          return "gpt-4o-mini";
-        case "anthropic":
-          return "claude-3-5-haiku-20241022";
-        case "gemini":
-          return "gemini-2.0-flash";
-        case "openrouter":
-          return "openai/gpt-4o-mini";
-        default: {
-          const _: never = ctx.ai.providerId;
-          return _;
-        }
-      }
-    })();
+    const model = defaultTextModel(ctx.ai.providerId);
 
     return ctx.ai.generateJSON({
       model,
