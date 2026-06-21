@@ -1,3 +1,4 @@
+import { AiProviderError, aiErrorFromResponse } from "../errors";
 import type { TextGenerationParams, TextGenerationResult } from "../types";
 import { BaseProvider } from "./base";
 
@@ -23,21 +24,32 @@ export class GeminiProvider extends BaseProvider {
     }
     parts.push({ text: params.userPrompt });
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts }],
-        generationConfig: {
-          temperature: params.temperature ?? 0.7,
-          maxOutputTokens: params.maxTokens,
-          ...(params.jsonMode ? { responseMimeType: "application/json" } : {}),
-        },
-      }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts }],
+          generationConfig: {
+            temperature: params.temperature ?? 0.7,
+            maxOutputTokens: params.maxTokens,
+            ...(params.jsonMode ? { responseMimeType: "application/json" } : {}),
+          },
+        }),
+      });
+    } catch (cause) {
+      throw new AiProviderError({
+        provider: this.providerId,
+        code: "network",
+        model: params.model,
+        detail: String(cause),
+        cause,
+      });
+    }
 
     if (!res.ok) {
-      throw new Error(`Gemini error ${res.status}: ${await res.text()}`);
+      throw await aiErrorFromResponse(this.providerId, res, params.model);
     }
 
     const data = (await res.json()) as {
