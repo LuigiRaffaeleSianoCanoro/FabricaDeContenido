@@ -4,22 +4,13 @@ import { Repeat, Clock, PlayCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
 import { requireOnboardingComplete } from "@/lib/auth/onboarding-status";
 import { requireSession } from "@/lib/auth/require-session";
 import { prisma } from "@/lib/db/prisma";
-import { EDGE_VOICES, DEFAULT_VOICE } from "@/lib/tts/voices";
 
-import { runAutopilotNow, saveAutomationSettings } from "./actions";
-
-function scheduleToText(value: unknown): string {
-  if (Array.isArray(value)) {
-    return value.filter((v): v is string => typeof v === "string").join(", ");
-  }
-  return "";
-}
+import { AutomationForm } from "./automation-form";
+import { runAutopilotNow } from "./actions";
 
 export default async function AutomationPage() {
   const { userId } = await requireSession();
@@ -98,136 +89,22 @@ export default async function AutomationPage() {
               </form>
             </div>
 
-            <form action={saveAutomationSettings} className="glass animate-scale-in space-y-4 rounded-2xl p-6">
-              <input type="hidden" name="organizationId" value={org.id} />
-
-              <div className="space-y-2">
-                <Label htmlFor="prompt">Prompt maestro</Label>
-                <textarea
-                  id="prompt"
-                  name="prompt"
-                  rows={4}
-                  defaultValue={cfg.prompt ?? ""}
-                  placeholder="Describe el contenido recurrente que quieres generar automáticamente."
-                  className="flex w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Si lo dejas vacío, se usarán tus temas (`topics`) de la configuración.
-                </p>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="schedule">Horarios (UTC, coma)</Label>
-                  <Input
-                    id="schedule"
-                    name="schedule"
-                    defaultValue={scheduleToText(cfg.postingSchedule)}
-                    placeholder="09:00, 18:30"
-                    className="bg-background/50"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="timezone">Zona horaria (referencia)</Label>
-                  <Input
-                    id="timezone"
-                    name="timezone"
-                    defaultValue={cfg.timezone ?? ""}
-                    placeholder="America/Bogota"
-                    className="bg-background/50"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="imageSource">Imágenes</Label>
-                  <select
-                    id="imageSource"
-                    name="imageSource"
-                    defaultValue={cfg.imageSource}
-                    className="flex h-10 w-full rounded-md border border-input bg-background/50 px-3 text-sm"
-                  >
-                    <option value="none">Gradientes</option>
-                    <option value="pexels">Stock Pexels</option>
-                    <option value="ai">IA (OpenAI)</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="slideCount">Slides</Label>
-                  <Input
-                    id="slideCount"
-                    name="slideCount"
-                    type="number"
-                    min={2}
-                    max={10}
-                    defaultValue={cfg.slideCount}
-                    className="bg-background/50"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="aspectRatio">Formato</Label>
-                  <select
-                    id="aspectRatio"
-                    name="aspectRatio"
-                    defaultValue={cfg.aspectRatio}
-                    className="flex h-10 w-full rounded-md border border-input bg-background/50 px-3 text-sm"
-                  >
-                    <option value="9:16">9:16</option>
-                    <option value="4:5">4:5</option>
-                    <option value="1:1">1:1</option>
-                    <option value="16:9">16:9</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="voiceName">Voz (Edge TTS)</Label>
-                <select
-                  id="voiceName"
-                  name="voiceName"
-                  defaultValue={cfg.voiceName ?? DEFAULT_VOICE}
-                  className="flex h-10 w-full rounded-md border border-input bg-background/50 px-3 text-sm"
-                >
-                  {EDGE_VOICES.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex flex-wrap gap-6">
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="voiceover" defaultChecked={cfg.voiceover} className="rounded" />
-                  Voz en off
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="requireApproval" defaultChecked={cfg.requireApproval} className="rounded" />
-                  Requiere aprobación
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="autoPost" defaultChecked={cfg.autoPost} className="rounded" />
-                  Auto-publicar (Buffer)
-                </label>
-              </div>
-
-              <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
-                <label className="flex items-center gap-3 text-sm font-medium">
-                  <input
-                    type="checkbox"
-                    name="isAutopilotActive"
-                    defaultChecked={cfg.isAutopilotActive}
-                    className="rounded"
-                  />
-                  Activar autopiloto (genera contenido en cada horario, automáticamente)
-                </label>
-              </div>
-
-              <Button type="submit" className="orange-glow bg-primary">
-                Guardar automatización
-              </Button>
-            </form>
+            <AutomationForm
+              organizationId={org.id}
+              initial={{
+                prompt: cfg.prompt ?? "",
+                postingSchedule: cfg.postingSchedule,
+                timezone: cfg.timezone ?? "",
+                imageSource: cfg.imageSource,
+                slideCount: cfg.slideCount,
+                aspectRatio: cfg.aspectRatio,
+                voiceName: cfg.voiceName,
+                voiceover: cfg.voiceover,
+                requireApproval: cfg.requireApproval,
+                autoPost: cfg.autoPost,
+                isAutopilotActive: cfg.isAutopilotActive,
+              }}
+            />
           </>
         )}
       </div>
