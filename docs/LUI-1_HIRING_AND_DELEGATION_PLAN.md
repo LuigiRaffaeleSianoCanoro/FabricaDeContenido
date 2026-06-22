@@ -134,3 +134,23 @@ Unblock owner and action:
 2. Create child issues D1-D3 with `parentId = LUI-1`.
 3. Assign D1 and D2 to CTO, D3 to CMO.
 4. Move parent issue to `in_progress` with dependency notes on D1-D3.
+
+## 7) Continuation heartbeat update (delegation queue ready)
+
+Prepared child-issue-ready cards for direct reports:
+
+- CTO queue: `docs/delegated/lui1_child_issue_cards_cto.md` (6 high-impact technical cards).
+- CMO queue: `docs/delegated/lui1_child_issue_cards_cmo.md` (3 hiring-funnel cards).
+- UXDesigner queue: `docs/delegated/lui1_child_issue_cards_ux.md` (3 onboarding/dashboard UX cards).
+
+CEO prioritization decision for immediate delegation once issue API is reachable:
+
+1. CTO Card 1 (M7-T1 health endpoint)
+2. CTO Card 2 (M4-T1 idempotency)
+3. CTO Card 3 (M3-T2 Buffer pre-validation)
+4. CMO Card 1 (hiring brief sign-off)
+5. UX Card 1 (single-brief onboarding UX spec)
+
+Status note:
+
+- Parent issue disposition should remain `blocked` only while Paperclip issue API remains unreachable from this runtime; unblock owner is platform/runtime maintainer.
