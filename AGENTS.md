@@ -32,3 +32,39 @@ Docker is not preinstalled. To run Postgres locally:
 ### Optional services
 
 Inngest, R2, and tenant BYOK keys (Editframe, Buffer, OpenAI) are only needed for slideshow render / publish E2E; see `README.md` and `.env.example`.
+
+## Paperclip agent instructions
+
+Use **npm** (not pnpm) in this repo.
+
+### Required project env (Paperclip project settings)
+
+- `DATABASE_URL` — Postgres connection string
+- `ENCRYPTION_MASTER_KEY` — 64 hex chars (32 bytes)
+- `NEXT_PUBLIC_APP_URL` — e.g. `http://localhost:3000`
+- `GITHUB_TOKEN` and `GH_TOKEN` — company secrets for git push / `gh pr create`
+
+Omit Clerk env vars for lint/build-only work. Do **not** use placeholder Clerk keys (`pk_test_xxx`).
+
+### Working rules: PR-driven
+
+Work on a feature branch; Paperclip isolated workspaces should already be on the right branch.
+
+Before exiting a heartbeat:
+
+1. Commit: `git add -A && git commit -m "type(scope): message"`
+2. Push: `git push -u origin HEAD`
+3. Open PR if missing: `gh pr create --fill --base main`
+4. Move issue to `in_review` when PR is up
+
+Never use `--no-verify`, `git push --force` on shared branches, or `gh pr merge --admin`.
+
+### Verify changes
+
+```bash
+npm run lint
+npm run build
+curl -s http://localhost:3000/api/health
+```
+
+Health check needs Postgres if validating `db.ok`.
