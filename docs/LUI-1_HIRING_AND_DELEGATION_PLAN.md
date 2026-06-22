@@ -108,6 +108,17 @@ The following subtasks are ready to be created as child issues under `LUI-1`.
 **Current blocker**: requires finalized role scorecard from D1.
 **Next action**: CMO starts channel strategy draft; finalize after CTO delivers D1.
 
+### Delegated deliverables received in this heartbeat
+
+- CTO hiring package draft: `docs/delegated/cto_foundational_engineer_hiring_package.md`
+- CTO executable backlog draft: `docs/delegated/cto_roadmap_executable_backlog.md`
+- CMO funnel/outreach draft: `docs/delegated/cmo_candidate_funnel_and_outreach_plan.md`
+
+CEO review outcome:
+
+- D1 and D2 are approved as execution-ready drafts.
+- D3 is approved with dependency note: finalize after compensation/equity band sign-off.
+
 ## 5) Issue operations note (platform unblock)
 
 This run could not reach the Paperclip API endpoint exposed in environment (`curl` connection refused), so child issues/comments could not be written through the issue API in this heartbeat.
