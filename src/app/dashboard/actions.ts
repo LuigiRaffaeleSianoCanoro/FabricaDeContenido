@@ -14,24 +14,50 @@ import { syncBufferChannels } from "@/lib/publishing/sync";
 import { writeAuditLog } from "@/services/audit-log";
 import type { ApiKeyProvider, MemberRole, ContentStatus } from "@prisma/client";
 
-export async function syncBufferChannelsAction(formData: FormData) {
-  const { userId } = await requireSession();
-  const organizationId = String(formData.get("organizationId") ?? "").trim();
-  if (!organizationId) throw new Error("Sin organización");
+export type SyncBufferActionState = {
+  ok?: boolean;
+  error?: string;
+  synced?: number;
+};
 
-  await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN"]);
+function toFriendlySyncBufferError(e: unknown): SyncBufferActionState {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/no tienes permiso|no hay una api key de buffer/i.test(msg)) return { error: msg };
+  if (/buffer api 401|unauthorized|forbidden|buffer graphql error/i.test(msg)) {
+    return { error: "La API key de Buffer parece inválida o vencida. Revísala y vuelve a sincronizar." };
+  }
+  if (/database_url|datasource|environment variable/i.test(msg)) {
+    return { error: "No se pudo sincronizar porque la base de datos no está bien configurada en el entorno." };
+  }
+  return { error: `No se pudo sincronizar Buffer. Detalle: ${msg}` };
+}
 
-  const result = await syncBufferChannels(organizationId);
+export async function syncBufferChannelsAction(
+  _: SyncBufferActionState,
+  formData: FormData,
+): Promise<SyncBufferActionState> {
+  try {
+    const { userId } = await requireSession();
+    const organizationId = String(formData.get("organizationId") ?? "").trim();
+    if (!organizationId) return { error: "Sin organización." };
 
-  await writeAuditLog({
-    organizationId,
-    actorUserId: userId,
-    action: "buffer.channels_synced",
-    resourceType: "SocialAccount",
-    metadata: { synced: result.synced },
-  });
+    await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN", "MEMBER"]);
 
-  revalidatePath("/dashboard/settings");
+    const result = await syncBufferChannels(organizationId);
+
+    await writeAuditLog({
+      organizationId,
+      actorUserId: userId,
+      action: "buffer.channels_synced",
+      resourceType: "SocialAccount",
+      metadata: { synced: result.synced },
+    });
+
+    revalidatePath("/dashboard/settings");
+    return { ok: true, synced: result.synced };
+  } catch (e) {
+    return toFriendlySyncBufferError(e);
+  }
 }
 
 export async function setActiveOrganization(formData: FormData) {

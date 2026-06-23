@@ -5,7 +5,6 @@ import {
   inviteMemberAction,
   settingsAddApiKey,
   settingsRevokeApiKey,
-  syncBufferChannelsAction,
 } from "@/app/dashboard/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +14,8 @@ import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
 import { requireOnboardingComplete } from "@/lib/auth/onboarding-status";
 import { requireSession } from "@/lib/auth/require-session";
 import { prisma } from "@/lib/db/prisma";
+
+import { BufferSyncForm } from "./buffer-sync-form";
 
 export default async function SettingsPage() {
   const { userId } = await requireSession();
@@ -160,12 +161,7 @@ export default async function SettingsPage() {
             )}
           </ul>
 
-          <form action={syncBufferChannelsAction}>
-            <input type="hidden" name="organizationId" value={org.id} />
-            <Button type="submit" variant="secondary" disabled={!hasBufferKey}>
-              {hasBufferKey ? "Sincronizar canales de Buffer" : "Añade tu API key de Buffer primero"}
-            </Button>
-          </form>
+          <BufferSyncForm organizationId={org.id} hasBufferKey={hasBufferKey} />
         </div>
 
         <div className="glass animate-scale-in rounded-2xl p-6">
