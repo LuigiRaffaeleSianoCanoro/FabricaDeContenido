@@ -27,8 +27,15 @@ Docker is not preinstalled. To run Postgres locally:
 - Dev server: `npm run dev` (port 3000). Use a tmux session for long-running processes.
 - Quick sanity check: `curl -s http://localhost:3000/api/health` → `ok: true` and `db.ok: true`.
 - Lint / build: `npm run lint`, `npm run build` (needs required env vars in `.env`; placeholders are fine for build per README).
-- No automated test suite in the repo today.
+- Tests: `npm test` (Vitest unit/integration), `npm run test:e2e` (Playwright). Ver `tests/README.md` y `.cursor/README.md`.
 
 ### Optional services
 
 Inngest, R2, and tenant BYOK keys (Editframe, Buffer, OpenAI) are only needed for slideshow render / publish E2E; see `README.md` and `.env.example`.
+
+### Agent skills & rules
+
+- **Rules**: `.cursor/rules/` — convenciones modulares (Next.js, Prisma, testing, Linear, seguridad).
+- **Skills del proyecto**: `.cursor/skills/` — Linear MCP, desarrollo, testing.
+- **Skills de comunidad**: `.agents/skills/` — vitest, playwright, prisma, vercel-react-best-practices (instalados vía `npx skills add`).
+- **Documentación**: `.cursor/README.md`

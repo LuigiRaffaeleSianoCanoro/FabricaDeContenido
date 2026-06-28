@@ -1,0 +1,58 @@
+---
+description: Core project context for Fabrica de Contenido — stack, layout, and agent workflow defaults.
+alwaysApply: true
+---
+
+# Fabrica de Contenido — proyecto
+
+SaaS multi-tenant B2B para autopiloto de contenido social en video (BYOK + Buffer-first).
+
+## Stack
+
+- **Next.js 16** App Router, React 19, TypeScript estricto, Tailwind 4, shadcn (Base UI)
+- **Auth**: Clerk (`src/middleware.ts`, `/login`, `/sign-up`, `/dashboard`)
+- **DB**: PostgreSQL + Prisma (`prisma/schema.prisma`, `src/lib/db/prisma.ts`)
+- **Colas**: Inngest (`src/lib/inngest/`, `/api/inngest`)
+- **IA**: adaptadores tenant BYOK cifrados (`src/lib/ai/`, `ENCRYPTION_MASTER_KEY`)
+- **TTS**: edge-tts-universal (`src/lib/tts/`)
+- **Publicación**: Buffer (`src/lib/publishing/`)
+- **Video**: GitHub Actions + R2 (`src/lib/video/`)
+- **Skills de producto**: `src/skills/` (registry + executor con Zod)
+
+## Estructura de carpetas
+
+```
+src/
+  app/           # App Router (páginas, API routes, server actions)
+  components/    # UI (ui/ = shadcn base — no modificar sin necesidad)
+  config/        # env.server.ts, public-env.ts
+  lib/           # Integraciones (ai, auth, db, inngest, publishing, tts, video)
+  services/      # Lógica de dominio server-side
+  skills/        # Skills ejecutables del producto (no confundir con .cursor/skills/)
+prisma/          # Schema, migraciones, seed
+tests/           # Suite de pruebas (unit, integration, e2e)
+.cursor/         # Rules y skills para agentes de desarrollo
+.agents/skills/  # Skills de comunidad instalados vía skills CLI
+```
+
+## Convenciones de agente
+
+1. Leer `node_modules/next/dist/docs/` antes de escribir código Next.js (APIs con breaking changes).
+2. Usar `import "server-only"` en módulos que acceden a DB, env secreto o cifrado.
+3. Validar env con `getServerEnv()` — no leer `process.env` directamente en lógica de negocio.
+4. Cambios mínimos y enfocados; seguir patrones existentes en el archivo vecino.
+5. Commits en ramas `cursor/<descripcion>-f5c8`; PR contra `main`.
+6. Linear: equipo **PsicoConecta (PSI)**, proyectos *Fabrica de Contenido — Producto* y *Fabrica GTM — Agencias LATAM*.
+
+## Comandos
+
+- `npm run dev` — servidor local (puerto 3000)
+- `npm run lint` / `npm run build`
+- `npm run db:push` / `npm run db:migrate` / `npm run db:seed`
+- `npm test` / `npm run test:unit` / `npm run test:e2e`
+- Health: `curl -s http://localhost:3000/api/health`
+
+## Clerk en desarrollo
+
+- Placeholders `pk_test_xxx` rompen middleware — omitir keys Clerk para dev DB-only.
+- Keys reales requeridas para `/dashboard` y flujos de auth completos.

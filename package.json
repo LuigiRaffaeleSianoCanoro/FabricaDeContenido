@@ -13,7 +13,12 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -44,6 +49,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.52.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -53,6 +59,8 @@
     "prisma": "^5.22.0",
     "tailwindcss": "^4",
     "tsx": "^4.22.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4",
+    "@vitest/coverage-v8": "^3.2.4"
   }
 }

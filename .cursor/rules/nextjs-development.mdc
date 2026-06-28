@@ -1,0 +1,40 @@
+---
+description: Next.js 16 App Router, React 19, y patrones de UI para este repositorio.
+globs:
+  - "src/**/*.{ts,tsx}"
+---
+
+# Desarrollo Next.js
+
+## App Router
+
+- Páginas y layouts en `src/app/`; componentes reutilizables en `src/components/`.
+- Server Components por defecto; `"use client"` solo cuando haya estado, efectos o event handlers.
+- Server Actions en `actions.ts` junto a la ruta que las consume.
+- API routes en `src/app/api/**/route.ts`.
+
+## Datos y auth
+
+- Sesión Clerk: `requireSession()` / helpers en `src/lib/auth/`.
+- RBAC: `src/lib/auth/rbac.ts` y `src/lib/auth/admin.ts`.
+- Org activa: `src/lib/auth/active-org.ts`.
+- Prisma solo en server code (`src/lib/db/prisma.ts`, services, actions).
+
+## UI
+
+- Tailwind 4 + utilidades `cn()` de `src/lib/utils.ts`.
+- Componentes base en `src/components/ui/` (shadcn/Base UI).
+- Dashboard shell: `src/components/dashboard/`.
+
+## Performance (Vercel)
+
+- Preferir fetch paralelo en server components.
+- Evitar barrel imports pesados en client bundles.
+- `React.cache` / deduplicación para datos repetidos en un request.
+- Ver skill `vercel-react-best-practices` en `.agents/skills/` para detalle.
+
+## Prohibido
+
+- Importar `src/lib/db/prisma.ts` o `getServerEnv()` en Client Components.
+- Exponer claves API o `ENCRYPTION_MASTER_KEY` al cliente.
+- Modificar `src/components/ui/` sin justificación (preferir composición).

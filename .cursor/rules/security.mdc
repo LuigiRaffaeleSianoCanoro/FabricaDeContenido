@@ -1,0 +1,29 @@
+---
+description: Seguridad — cifrado BYOK, auth Clerk, y secretos de entorno.
+globs:
+  - "src/lib/encryption/**"
+  - "src/lib/auth/**"
+  - "src/services/api-keys.ts"
+  - "src/config/**"
+---
+
+# Seguridad
+
+## Secretos
+
+- `ENCRYPTION_MASTER_KEY`: 64 hex chars (AES-256-GCM) — nunca en cliente ni logs.
+- Claves tenant (`EncryptedApiKey`): cifrar con `src/lib/encryption/cipher.ts`.
+- Validar env con `getServerEnv()` en `src/config/env.server.ts`.
+
+## Auth
+
+- Middleware Clerk en `src/middleware.ts` protege `/dashboard/**`.
+- Webhook Clerk: verificar firma Svix en `/api/webhooks/clerk`.
+- Admin: `ADMIN_EMAILS` + `src/lib/auth/admin.ts`.
+
+## Reglas
+
+- `import "server-only"` en módulos con secretos o DB.
+- No commitear `.env` — solo `.env.example` como plantilla.
+- Rate limiting opcional vía Upstash (`@upstash/ratelimit`).
+- Auditar acciones sensibles con `src/services/audit-log.ts`.
