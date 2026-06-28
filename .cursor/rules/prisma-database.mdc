@@ -1,0 +1,33 @@
+---
+description: Prisma schema, migraciones y acceso a base de datos PostgreSQL.
+globs:
+  - "prisma/**"
+  - "src/lib/db/**"
+  - "src/services/**"
+---
+
+# Prisma y base de datos
+
+## Schema
+
+- Modelos en `prisma/schema.prisma`; `UserProfile.id` = Clerk user id.
+- Enums de dominio: `Plan`, `MemberRole`, `JobStatus`, `JobType`, `ContentStatus`, etc.
+- Tras cambios de schema: `npm run db:push` (dev) o `npm run db:migrate` (migraciones nombradas).
+
+## Acceso a datos
+
+- Cliente singleton: `src/lib/db/prisma.ts`.
+- Lógica de negocio en `src/services/` (audit-log, api-keys, etc.).
+- Errores tipados: `src/lib/db/errors.ts`.
+
+## Reglas
+
+- No SQL raw salvo migraciones o casos excepcionales documentados.
+- No exponer el cliente Prisma fuera de server code.
+- Seed de skills de producto: `npm run db:seed` (`prisma/seed.ts`).
+- Validar inputs con Zod antes de writes; respetar multi-tenancy por organización.
+
+## Skills de referencia
+
+- `.agents/skills/prisma-client-api/` — API del cliente
+- `.agents/skills/prisma-cli/` — comandos CLI

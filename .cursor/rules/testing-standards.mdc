@@ -1,0 +1,43 @@
+---
+description: Estándares de testing — Vitest unit/integration, Playwright E2E.
+globs:
+  - "tests/**"
+  - "**/*.{test,spec}.{ts,tsx}"
+  - "vitest.config.ts"
+  - "playwright.config.ts"
+---
+
+# Testing
+
+## Pirámide
+
+| Capa | Herramienta | Ubicación | Cuándo |
+|------|-------------|-----------|--------|
+| Unit | Vitest | `tests/unit/` o co-located `*.test.ts` | Lógica pura, utils, validadores Zod |
+| Integration | Vitest | `tests/integration/` | Services + Prisma (DB de test) |
+| E2E | Playwright | `tests/e2e/` | Flujos críticos de usuario |
+
+## Convenciones
+
+- Patrón AAA (Arrange / Act / Assert).
+- Nombres descriptivos: `describe('slugify')` → `it('normalizes unicode accents')`.
+- Mock Prisma solo en unit tests; integration usa DB real o test container.
+- Selectores E2E: `data-testid` — evitar CSS frágil.
+- Page Object Model en `tests/e2e/pages/`.
+- Factories de datos en `tests/fixtures/`.
+- Probar comportamiento observable, no detalles de implementación.
+
+## Comandos
+
+```bash
+npm test              # vitest run
+npm run test:watch    # vitest watch
+npm run test:coverage # cobertura
+npm run test:e2e      # playwright test
+```
+
+## Skills de referencia
+
+- `.agents/skills/vitest/` — patrones Vitest (antfu, 25k+ installs)
+- `.agents/skills/playwright-best-practices/` — E2E (currents-dev, 55k+ installs)
+- `.cursor/skills/testing/fabrica-testing/` — convenciones específicas del proyecto

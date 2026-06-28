@@ -1,0 +1,42 @@
+---
+description: Gestión de proyecto con Linear — equipo PSI, estados, y flujo de issues para agentes.
+alwaysApply: false
+---
+
+# Linear — gestión de proyecto
+
+## Workspace
+
+- **Equipo**: PsicoConecta (`PSI`)
+- **Proyectos**:
+  - *Fabrica de Contenido — Producto* — roadmap M1–M8, producto self-serve
+  - *Fabrica GTM — Agencias LATAM* — plan comercial 90 días
+- **Estados**: Backlog → Todo → In Progress → Done (también Duplicate, Canceled)
+
+## Herramientas MCP
+
+Usar el servidor Linear MCP (`save_issue`, `list_issues`, `get_issue`, `save_comment`, `list_projects`, etc.).
+
+## Flujo del agente
+
+1. **Antes de implementar**: buscar issue relacionado (`list_issues` con `query` o `label`).
+2. **Durante**: actualizar estado a *In Progress*; comentar progreso con `save_comment`.
+3. **Al terminar**: mover a *Done*; enlazar PR en `links` del issue.
+4. **Descomponer trabajo**: usar skill `/to-linear-issues` para vertical slices (tracer bullets).
+
+## Crear issues
+
+- `save_issue` sin `id` para crear; `team: "PsicoConecta"` obligatorio.
+- Título conciso; descripción con criterios de aceptación en checklist.
+- Prioridad: 1=Urgent, 2=High, 3=Medium, 4=Low.
+- Relaciones: `blockedBy`, `blocks`, `relatedTo` — preferir relaciones nativas sobre texto en descripción.
+
+## Ramas Git
+
+- Formato cloud agent: `cursor/<descripcion>-f5c8`
+- Linear sugiere `gitBranchName` en `get_issue` — alinear cuando sea posible.
+
+## Skills
+
+- `.cursor/skills/project-management/linear-mcp/` — referencia MCP
+- `.cursor/skills/project-management/to-linear-issues/` — descomponer planes en issues
