@@ -9,8 +9,9 @@ import { requireSession } from "@/lib/auth/require-session";
 import { isPlatformAdminEmail } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { encryptSecret, fingerprintSecret } from "@/lib/encryption/cipher";
-import { inngest } from "@/lib/inngest/client";
+import { sendInngestEvent } from "@/lib/inngest/send";
 import { syncBufferChannels } from "@/lib/publishing/sync";
+import { validateBufferApiKey } from "@/lib/publishing/validate-buffer-key";
 import { writeAuditLog } from "@/services/audit-log";
 import type { ApiKeyProvider, MemberRole, ContentStatus } from "@prisma/client";
 
@@ -84,6 +85,11 @@ export async function settingsAddApiKey(formData: FormData) {
   await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN"]);
   if (!["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER", "BUFFER", "EDITFRAME"].includes(provider)) {
     throw new Error("Proveedor no soportado");
+  }
+
+  if (provider === "BUFFER") {
+    const validation = await validateBufferApiKey(key);
+    if (!validation.ok) throw new Error(validation.message);
   }
 
   const env = getServerEnv();
@@ -160,7 +166,7 @@ export async function requestPipelineRun(formData: FormData) {
   });
   if (!cfg) throw new Error("Falta ContentConfig (usa onboarding)");
 
-  await inngest.send({
+  await sendInngestEvent({
     name: "content/pipeline.requested",
     data: { organizationId, contentConfigId: cfg.id },
   });
@@ -197,7 +203,7 @@ export async function approveGeneratedContent(formData: FormData) {
   });
 
   if (cfg?.autoPost && !cfg.requireApproval) {
-    await inngest.send({
+    await sendInngestEvent({
       name: "content/publish.requested",
       data: { organizationId, generatedContentId: id },
     });
@@ -236,7 +242,7 @@ export async function publishGeneratedContent(formData: FormData) {
     );
   }
 
-  await inngest.send({
+  await sendInngestEvent({
     name: "content/publish.requested",
     data: { organizationId, generatedContentId: id, publishNow },
   });
@@ -326,7 +332,7 @@ export async function retryJobAction(formData: FormData) {
   });
   if (!cfg) throw new Error("Falta ContentConfig");
 
-  await inngest.send({
+  await sendInngestEvent({
     name: "content/pipeline.requested",
     data: { organizationId, contentConfigId: cfg.id },
   });
