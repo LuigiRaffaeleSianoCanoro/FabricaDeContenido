@@ -60,7 +60,7 @@ type PexelsPhoto = {
 
 /**
  * Searches Pexels for a stock photo URL matching the query and aspect ratio.
- * Returns a remote URL (usable directly as an Editframe image src).
+ * Returns a remote URL (usable directly as a slideshow background image src).
  */
 export async function searchPexelsImageUrl(
   apiKey: string,

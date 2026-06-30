@@ -11,10 +11,9 @@ import {
 } from "lucide-react";
 import { redirect } from "next/navigation";
 
-import { requestPipelineRun } from "@/app/dashboard/actions";
 import { AutopilotSummary } from "@/components/dashboard/autopilot-summary";
+import { GenerateHooksForm } from "@/components/dashboard/generate-hooks-form";
 import { NextSteps } from "@/components/dashboard/next-steps";
-import { Button } from "@/components/ui/button";
 import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
 import { requireOnboardingComplete } from "@/lib/auth/onboarding-status";
 import { requireSession } from "@/lib/auth/require-session";
@@ -153,12 +152,7 @@ export default async function DashboardHomePage() {
             Genera ideas de texto con IA según tu configuración. Para videos, usá el Studio.
           </p>
           <div className="flex flex-wrap items-center gap-3">
-            <form action={requestPipelineRun}>
-              <input type="hidden" name="organizationId" value={org.id} />
-              <Button type="submit" className="orange-glow bg-primary font-semibold text-primary-foreground">
-                Generar hooks
-              </Button>
-            </form>
+            <GenerateHooksForm organizationId={org.id} />
             <Link
               href="/dashboard/studio"
               className="text-sm font-medium text-primary transition-colors hover:text-primary/80"

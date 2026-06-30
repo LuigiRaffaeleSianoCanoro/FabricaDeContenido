@@ -17,6 +17,8 @@ function mapProvider(p: ApiKeyProvider): AIProviderId {
       return "gemini";
     case "OPENROUTER":
       return "openrouter";
+    case "MINIMAX":
+      return "minimax";
     default:
       throw new Error(`Provider ${p} is not mapped to an AI adapter`);
   }
@@ -53,7 +55,13 @@ export async function touchApiKeyUsed(id: string) {
   });
 }
 
-const AI_PROVIDERS: ApiKeyProvider[] = ["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER"];
+const AI_PROVIDERS: ApiKeyProvider[] = [
+  "OPENAI",
+  "ANTHROPIC",
+  "GEMINI",
+  "OPENROUTER",
+  "MINIMAX",
+];
 
 export async function getFirstActiveAiKeyForOrg(organizationId: string) {
   for (const provider of AI_PROVIDERS) {
