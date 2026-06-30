@@ -11,10 +11,10 @@ import {
 } from "lucide-react";
 import { redirect } from "next/navigation";
 
-import { requestPipelineRun } from "@/app/dashboard/actions";
+import { AutopilotSummary } from "@/components/dashboard/autopilot-summary";
 import { DashboardPollRefresh } from "@/components/dashboard/dashboard-poll-refresh";
+import { GenerateHooksForm } from "@/components/dashboard/generate-hooks-form";
 import { NextSteps } from "@/components/dashboard/next-steps";
-import { Button } from "@/components/ui/button";
 import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
 import { requireOnboardingComplete } from "@/lib/auth/onboarding-status";
 import { requireSession } from "@/lib/auth/require-session";
@@ -65,22 +65,34 @@ export default async function DashboardHomePage() {
     redirect("/dashboard/onboarding");
   }
 
-  const [nextSteps, contentCount, activeJobs, scheduledCount, publishedCount] = await Promise.all([
-    getNextStepsState(org.id),
-    prisma.generatedContent.count({ where: { organizationId: org.id } }),
-    prisma.contentJob.count({
-      where: {
-        organizationId: org.id,
-        status: { in: ["PENDING", "QUEUED", "RUNNING"] },
-      },
-    }),
-    prisma.scheduledPost.count({
-      where: { organizationId: org.id, status: "SCHEDULED" },
-    }),
-    prisma.scheduledPost.count({
-      where: { organizationId: org.id, status: "PUBLISHED" },
-    }),
-  ]);
+  const [nextSteps, contentCount, activeJobs, scheduledCount, publishedCount, defaultConfig] =
+    await Promise.all([
+      getNextStepsState(org.id),
+      prisma.generatedContent.count({ where: { organizationId: org.id } }),
+      prisma.contentJob.count({
+        where: {
+          organizationId: org.id,
+          status: { in: ["PENDING", "QUEUED", "RUNNING"] },
+        },
+      }),
+      prisma.scheduledPost.count({
+        where: { organizationId: org.id, status: "SCHEDULED" },
+      }),
+      prisma.scheduledPost.count({
+        where: { organizationId: org.id, status: "PUBLISHED" },
+      }),
+      prisma.contentConfig.findFirst({
+        where: { organizationId: org.id, isDefault: true },
+        select: {
+          isAutopilotActive: true,
+          postingSchedule: true,
+          prompt: true,
+          nextRunAt: true,
+          lastRunAt: true,
+          updatedAt: true,
+        },
+      }),
+    ]);
 
   const stats = [
     { label: "Contenidos", value: String(contentCount), icon: Sparkles },
@@ -139,12 +151,7 @@ export default async function DashboardHomePage() {
             Genera ideas de texto con IA según tu configuración. Para videos, usá el Studio.
           </p>
           <div className="flex flex-wrap items-center gap-3">
-            <form action={requestPipelineRun}>
-              <input type="hidden" name="organizationId" value={org.id} />
-              <Button type="submit" className="orange-glow bg-primary font-semibold text-primary-foreground">
-                Generar hooks
-              </Button>
-            </form>
+            <GenerateHooksForm organizationId={org.id} />
             <Link
               href="/dashboard/studio"
               className="text-sm font-medium text-primary transition-colors hover:text-primary/80"
@@ -153,6 +160,10 @@ export default async function DashboardHomePage() {
             </Link>
           </div>
         </div>
+      </div>
+
+      <div className="relative z-10 mb-8">
+        {defaultConfig ? <AutopilotSummary config={defaultConfig} /> : null}
       </div>
 
       <div className="relative z-10 flex-1">
@@ -165,7 +176,9 @@ export default async function DashboardHomePage() {
               className="glass group animate-slide-in-left overflow-hidden rounded-2xl p-5 transition-all hover:scale-[1.02] hover:bg-primary/5"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
-              <div className={`absolute inset-0 bg-gradient-to-br ${action.color} opacity-0 transition-opacity group-hover:opacity-100`} />
+              <div
+                className={`absolute inset-0 bg-gradient-to-br ${action.color} opacity-0 transition-opacity group-hover:opacity-100`}
+              />
               <div className="relative z-10 flex items-start justify-between">
                 <div className="flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                   <action.icon className="size-6" />

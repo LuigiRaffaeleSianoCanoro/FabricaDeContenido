@@ -6,7 +6,7 @@ import { revalidateDashboardHome } from "@/lib/dashboard/revalidate";
 import { assertOrgRole } from "@/lib/auth/rbac";
 import { requireSession } from "@/lib/auth/require-session";
 import { prisma } from "@/lib/db/prisma";
-import { inngest } from "@/lib/inngest/client";
+import { sendInngestEvent } from "@/lib/inngest/send";
 import { computeNextScheduledAt } from "@/lib/publishing/schedule";
 import { writeAuditLog } from "@/services/audit-log";
 
@@ -119,7 +119,7 @@ export async function runAutopilotNow(formData: FormData) {
   });
   if (!cfg) throw new Error("Falta configuración por defecto (onboarding).");
 
-  await inngest.send({
+  await sendInngestEvent({
     name: "content/slideshow.requested",
     data: { organizationId, contentConfigId: cfg.id },
   });

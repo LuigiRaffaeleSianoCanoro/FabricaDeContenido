@@ -10,6 +10,7 @@ import { requireSession } from "@/lib/auth/require-session";
 import { prisma } from "@/lib/db/prisma";
 import { encryptSecret, fingerprintSecret } from "@/lib/encryption/cipher";
 import { slugify } from "@/lib/utils/slugify";
+import { validateBufferApiKey } from "@/lib/publishing/validate-buffer-key";
 import { writeAuditLog } from "@/services/audit-log";
 import type { ApiKeyProvider } from "@prisma/client";
 
@@ -123,10 +124,16 @@ export async function onboardingSaveAiKey(
   const organizationId = String(formData.get("organizationId") ?? "");
   const provider = String(formData.get("provider") ?? "OPENAI") as ApiKeyProvider;
   const key = String(formData.get("apiKey") ?? "").trim();
+  const customLabel = String(formData.get("customLabel") ?? "").trim();
   if (!organizationId || !key) return { error: "Faltan datos." };
 
-  if (!["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER"].includes(provider)) {
+  const allowed = ["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER", "MINIMAX", "CUSTOM"] as const;
+  if (!allowed.includes(provider as (typeof allowed)[number])) {
     return { error: "Proveedor no válido." };
+  }
+
+  if (provider === "CUSTOM" && customLabel.length < 2) {
+    return { error: "Indicá el nombre del servicio (ej: Cursor, Mistral)." };
   }
 
   try {
@@ -135,6 +142,8 @@ export async function onboardingSaveAiKey(
     const env = getServerEnv();
     const enc = encryptSecret(key, env.ENCRYPTION_MASTER_KEY);
     const fp = fingerprintSecret(key);
+    const label =
+      provider === "CUSTOM" ? customLabel : `${provider} key`;
 
     await prisma.encryptedApiKey.upsert({
       where: {
@@ -143,13 +152,14 @@ export async function onboardingSaveAiKey(
       create: {
         organizationId,
         provider,
-        label: `${provider} key`,
+        label,
         encryptedPayload: enc.ciphertext,
         iv: enc.iv,
         authTag: enc.authTag,
         keyFingerprint: fp,
       },
       update: {
+        label,
         encryptedPayload: enc.ciphertext,
         iv: enc.iv,
         authTag: enc.authTag,
@@ -183,52 +193,16 @@ export async function onboardingSaveBuffer(
   const organizationId = String(formData.get("organizationId") ?? "");
   const token = String(formData.get("bufferToken") ?? "").trim();
   const profileId = String(formData.get("bufferProfileId") ?? "").trim();
-  const editframeKey = String(formData.get("editframeKey") ?? "").trim();
   if (!organizationId) return { error: "Organización no válida." };
   if (!token) return { error: "Pegá tu API key de Buffer para continuar." };
+
+  const bufferValidation = await validateBufferApiKey(token);
+  if (!bufferValidation.ok) return { error: bufferValidation.message };
 
   const keyErr = encryptionKeyError();
   if (keyErr) return keyErr;
 
   await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN"]);
-
-  if (editframeKey) {
-    const env = getServerEnv();
-    const enc = encryptSecret(editframeKey, env.ENCRYPTION_MASTER_KEY);
-    const fp = fingerprintSecret(editframeKey);
-
-    await prisma.encryptedApiKey.upsert({
-      where: {
-        organizationId_provider: { organizationId, provider: "EDITFRAME" },
-      },
-      create: {
-        organizationId,
-        provider: "EDITFRAME",
-        label: "Editframe",
-        encryptedPayload: enc.ciphertext,
-        iv: enc.iv,
-        authTag: enc.authTag,
-        keyFingerprint: fp,
-      },
-      update: {
-        encryptedPayload: enc.ciphertext,
-        iv: enc.iv,
-        authTag: enc.authTag,
-        keyFingerprint: fp,
-        isActive: true,
-        revokedAt: null,
-        lastRotatedAt: new Date(),
-      },
-    });
-
-    await writeAuditLog({
-      organizationId,
-      actorUserId: userId,
-      action: "api_key.upsert",
-      resourceType: "EncryptedApiKey",
-      metadata: { provider: "EDITFRAME" },
-    });
-  }
 
   if (token) {
     const env = getServerEnv();
@@ -317,33 +291,55 @@ export async function onboardingSaveContentConfig(
     .map((s) => s.trim())
     .filter(Boolean);
 
-  await prisma.contentConfig.updateMany({
+  const existing = await prisma.contentConfig.findFirst({
     where: { organizationId, isDefault: true },
-    data: { isDefault: false },
+    orderBy: { updatedAt: "desc" },
   });
 
-  await prisma.contentConfig.create({
-    data: {
+  if (existing) {
+    await prisma.contentConfig.update({
+      where: { id: existing.id },
+      data: {
+        tone,
+        targetAudience: audience,
+        topics,
+        platforms,
+        autoPost,
+        requireApproval,
+      },
+    });
+
+    await writeAuditLog({
       organizationId,
-      name: "Default",
-      isDefault: true,
-      tone,
-      targetAudience: audience,
-      topics,
-      platforms,
-      contentTypes: ["POST"],
-      postsPerDay: 1,
-      autoPost,
-      requireApproval,
-    },
-  });
+      actorUserId: userId,
+      action: "content_config.updated",
+      resourceType: "ContentConfig",
+      resourceId: existing.id,
+    });
+  } else {
+    await prisma.contentConfig.create({
+      data: {
+        organizationId,
+        name: "Default",
+        isDefault: true,
+        tone,
+        targetAudience: audience,
+        topics,
+        platforms,
+        contentTypes: ["POST"],
+        postsPerDay: 1,
+        autoPost,
+        requireApproval,
+      },
+    });
 
-  await writeAuditLog({
-    organizationId,
-    actorUserId: userId,
-    action: "content_config.created",
-    resourceType: "ContentConfig",
-  });
+    await writeAuditLog({
+      organizationId,
+      actorUserId: userId,
+      action: "content_config.created",
+      resourceType: "ContentConfig",
+    });
+  }
 
   revalidatePath("/dashboard");
   redirect("/dashboard");

@@ -6,8 +6,10 @@ import { userMessageForAiError } from "@/lib/ai/errors";
 import { revalidateDashboardHome } from "@/lib/dashboard/revalidate";
 import { assertOrgRole } from "@/lib/auth/rbac";
 import { requireSession } from "@/lib/auth/require-session";
-import { inngest } from "@/lib/inngest/client";
+import { sendInngestEvent } from "@/lib/inngest/send";
 import { getActiveAiProviderForOrg, getFirstActiveAiKeyForOrg, touchApiKeyUsed } from "@/services/api-keys";
+import { buildSlideshowHtml } from "@/lib/video/editframe-composition";
+import { buildSlideshowRenderGuide } from "@/lib/video/render-guide";
 import { getSkill } from "@/skills/registry";
 import { SlideshowPlanSchema, type SlideshowPlan } from "@/skills/slideshow-planner/skill";
 
@@ -15,6 +17,8 @@ export type StudioPlanState = {
   error?: string;
   ok?: boolean;
   plan?: SlideshowPlan;
+  renderGuide?: string;
+  compositionHtml?: string;
   prompt?: string;
   platform?: string;
   slideCount?: number;
@@ -61,7 +65,15 @@ export async function generateSlideshowPlan(
       { organizationId, jobId: "preview", ai, log: async () => {} },
     );
     const plan = SlideshowPlanSchema.parse(planUnknown);
-    return { ok: true, plan, ...passthrough };
+    const composition = buildSlideshowHtml(plan, { aspectRatio });
+    const renderGuide = buildSlideshowRenderGuide(composition, { title: plan.title });
+    return {
+      ok: true,
+      plan,
+      renderGuide,
+      compositionHtml: composition.html,
+      ...passthrough,
+    };
   } catch (err) {
     console.error("[studio] generateSlideshowPlan failed", err);
     return {
@@ -86,7 +98,7 @@ export async function requestSlideshowRender(formData: FormData) {
 
   await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN", "MEMBER"]);
 
-  await inngest.send({
+  await sendInngestEvent({
     name: "content/slideshow.requested",
     data: { organizationId, prompt, platform, slideCount, aspectRatio, imageSource, voiceover, voiceName },
   });

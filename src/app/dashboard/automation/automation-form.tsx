@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DEFAULT_VOICE, EDGE_VOICES } from "@/lib/tts/voices";
+import { formatScheduleForDisplay } from "@/lib/publishing/schedule";
 
 import {
   type AutomationActionState,
@@ -32,23 +33,6 @@ type Props = {
 };
 
 const initialState: AutomationActionState = {};
-
-function scheduleToText(value: unknown): string {
-  if (!Array.isArray(value)) return "";
-  return value
-    .map((entry) => {
-      if (typeof entry === "string") return entry.trim();
-      if (!entry || typeof entry !== "object") return "";
-      const slot = entry as { hour?: unknown; minute?: unknown };
-      const hour = Number(slot.hour);
-      const minute = Number(slot.minute ?? 0);
-      if (!Number.isInteger(hour) || hour < 0 || hour > 23) return "";
-      if (!Number.isInteger(minute) || minute < 0 || minute > 59) return "";
-      return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-    })
-    .filter(Boolean)
-    .join(", ");
-}
 
 export function AutomationForm({ organizationId, initial }: Props) {
   const [state, action, pending] = useActionState(saveAutomationSettings, initialState);
@@ -78,7 +62,7 @@ export function AutomationForm({ organizationId, initial }: Props) {
           <Input
             id="schedule"
             name="schedule"
-            defaultValue={scheduleToText(initial.postingSchedule)}
+            defaultValue={formatScheduleForDisplay(initial.postingSchedule)}
             placeholder="09:00, 18:30"
             className="bg-background/50"
           />

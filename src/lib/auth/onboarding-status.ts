@@ -7,7 +7,14 @@ import { prisma } from "@/lib/db/prisma";
 import { getActiveOrganizationForUser } from "./active-org";
 import { requireSession } from "./require-session";
 
-const AI_PROVIDERS = ["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER"] as const;
+const AI_PROVIDERS = [
+  "OPENAI",
+  "ANTHROPIC",
+  "GEMINI",
+  "OPENROUTER",
+  "MINIMAX",
+  "CUSTOM",
+] as const;
 
 export type OnboardingStatus = {
   complete: boolean;

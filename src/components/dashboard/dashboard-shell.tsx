@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Menu, Sparkles } from "lucide-react";
 
@@ -10,11 +11,13 @@ export function DashboardShell({
   email,
   organizations,
   activeOrganizationId,
+  isPlatformAdmin = false,
   children,
 }: {
   email: string;
   organizations: OrgWithRole[];
   activeOrganizationId: string | null;
+  isPlatformAdmin?: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -44,6 +47,7 @@ export function DashboardShell({
         email={email}
         organizations={organizations}
         activeOrganizationId={activeOrganizationId}
+        isPlatformAdmin={isPlatformAdmin}
         open={open}
         onClose={() => setOpen(false)}
       />
@@ -59,12 +63,15 @@ export function DashboardShell({
           >
             <Menu className="size-5" />
           </button>
-          <div className="flex items-center gap-2">
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-2 rounded-lg transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
             <span className="flex size-7 items-center justify-center rounded-lg bg-primary">
               <Sparkles className="size-3.5 text-primary-foreground" />
             </span>
             <span className="font-bold tracking-tight">Fábrica</span>
-          </div>
+          </Link>
         </header>
 
         <main className="flex-1 overflow-x-hidden overflow-y-auto">{children}</main>

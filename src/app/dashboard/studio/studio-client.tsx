@@ -18,7 +18,6 @@ const initial: StudioPlanState = {};
 type Props = {
   organizationId: string;
   hasAiKey: boolean;
-  hasEditframeKey: boolean;
   hasOpenAiKey: boolean;
   hasPexels: boolean;
   hasR2: boolean;
@@ -27,12 +26,22 @@ type Props = {
 export function StudioClient({
   organizationId,
   hasAiKey,
-  hasEditframeKey,
   hasOpenAiKey,
   hasPexels,
   hasR2,
 }: Props) {
   const [state, action, pending] = useActionState(generateSlideshowPlan, initial);
+
+  function downloadCompositionHtml() {
+    if (!state.compositionHtml) return;
+    const blob = new Blob([state.compositionHtml], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "index.html";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -197,10 +206,18 @@ export function StudioClient({
               </p>
             )}
 
-            {!hasEditframeKey && (
-              <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-                Añade tu Editframe API key (Ajustes) para renderizar el video animado.
-              </p>
+            {state.renderGuide && (
+              <div className="space-y-2 rounded-lg border border-border/50 bg-card/40 p-3">
+                <p className="text-xs font-semibold text-foreground">Render local (HyperFrames)</p>
+                <pre className="max-h-40 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed text-muted-foreground">
+                  {state.renderGuide}
+                </pre>
+                {state.compositionHtml && (
+                  <Button type="button" size="sm" variant="outline" onClick={downloadCompositionHtml}>
+                    Descargar index.html
+                  </Button>
+                )}
+              </div>
             )}
 
             <form action={requestSlideshowRender}>
@@ -212,13 +229,13 @@ export function StudioClient({
               <input type="hidden" name="imageSource" value={state.imageSource ?? "none"} />
               <input type="hidden" name="voiceover" value={state.voiceover ? "true" : "false"} />
               <input type="hidden" name="voiceName" value={state.voiceName || DEFAULT_VOICE} />
-              <Button type="submit" disabled={!hasEditframeKey} className="bg-primary">
-                Renderizar con Editframe
+              <Button type="submit" className="bg-primary">
+                Renderizar slideshow
               </Button>
             </form>
             <p className="text-xs text-muted-foreground">
-              El render se procesa en segundo plano. Mira el progreso en Trabajos y el resultado en
-              Contenido.
+              El render usa HyperFrames en el servidor (sin API key). También podés descargar el HTML
+              y renderizar en tu máquina, o pedirle a tu agente de código que instale hyperframes.
             </p>
           </div>
         )}
