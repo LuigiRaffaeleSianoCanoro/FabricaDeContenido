@@ -20,6 +20,33 @@ export type SyncBufferActionState = {
   synced?: number;
 };
 
+export type PipelineRunActionState = {
+  ok?: boolean;
+  error?: string;
+  message?: string;
+};
+
+function toFriendlyPipelineError(e: unknown): PipelineRunActionState {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/no tienes permiso/i.test(msg)) return { error: msg };
+  if (/falta contentconfig|contentconfig/i.test(msg)) {
+    return { error: "Completa el onboarding para crear una configuración de contenido." };
+  }
+  if (/inngest|event key|couldn't find an event key/i.test(msg)) {
+    return {
+      error:
+        "La cola de trabajos (Inngest) no está configurada. Añade INNGEST_EVENT_KEY en Vercel o ejecuta la app con el servidor de desarrollo de Inngest en local.",
+    };
+  }
+  if (/database_url|datasource|environment variable|prisma/i.test(msg)) {
+    return {
+      error:
+        "No se pudo conectar con la base de datos. Verifica DATABASE_URL y ejecuta npm run db:push.",
+    };
+  }
+  return { error: `No se pudo iniciar la generación. Detalle: ${msg}` };
+}
+
 function toFriendlySyncBufferError(e: unknown): SyncBufferActionState {
   const msg = e instanceof Error ? e.message : String(e);
   if (/no tienes permiso|no hay una api key de buffer/i.test(msg)) return { error: msg };
@@ -147,26 +174,47 @@ export async function settingsRevokeApiKey(formData: FormData) {
   revalidatePath("/dashboard/settings");
 }
 
-export async function requestPipelineRun(formData: FormData) {
-  const { userId } = await requireSession();
-  const organizationId = String(formData.get("organizationId") ?? "").trim();
-  if (!organizationId) throw new Error("Sin organización");
+export async function requestPipelineRun(
+  _: PipelineRunActionState,
+  formData: FormData,
+): Promise<PipelineRunActionState> {
+  try {
+    const { userId } = await requireSession();
+    const organizationId = String(formData.get("organizationId") ?? "").trim();
+    if (!organizationId) return { error: "Sin organización." };
 
-  await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN", "MEMBER"]);
+    await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN", "MEMBER"]);
 
-  const cfg = await prisma.contentConfig.findFirst({
-    where: { organizationId, isDefault: true },
-    orderBy: { updatedAt: "desc" },
-  });
-  if (!cfg) throw new Error("Falta ContentConfig (usa onboarding)");
+    const cfg = await prisma.contentConfig.findFirst({
+      where: { organizationId, isDefault: true },
+      orderBy: { updatedAt: "desc" },
+    });
+    if (!cfg) {
+      return { error: "Completa el onboarding para crear una configuración de contenido." };
+    }
 
-  await inngest.send({
-    name: "content/pipeline.requested",
-    data: { organizationId, contentConfigId: cfg.id },
-  });
+    if (!process.env.INNGEST_EVENT_KEY?.trim()) {
+      return {
+        error:
+          "La cola de trabajos (Inngest) no está configurada. Añade INNGEST_EVENT_KEY en Vercel o ejecuta la app con el servidor de desarrollo de Inngest en local.",
+      };
+    }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/jobs");
+    await inngest.send({
+      name: "content/pipeline.requested",
+      data: { organizationId, contentConfigId: cfg.id },
+    });
+
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/jobs");
+    revalidatePath("/dashboard/content");
+    return {
+      ok: true,
+      message: "Generación iniciada. Revisa Trabajos o Contenido en unos segundos.",
+    };
+  } catch (e) {
+    return toFriendlyPipelineError(e);
+  }
 }
 
 export async function approveGeneratedContent(formData: FormData) {
