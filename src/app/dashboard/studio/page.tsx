@@ -24,7 +24,6 @@ export default async function StudioPage() {
   const hasAiKey = ["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER"].some((p) =>
     providers.has(p as never),
   );
-  const hasEditframeKey = providers.has("EDITFRAME");
   const hasOpenAiKey = providers.has("OPENAI");
   const hasPexels = Boolean(process.env.PEXELS_API_KEY);
   const hasR2 = isR2Configured();
@@ -47,7 +46,7 @@ export default async function StudioPage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Studio</h1>
             <p className="text-sm text-muted-foreground">
-              Prompt → slideshow animado (Editframe) · {org.name}
+              Prompt → slideshow animado (HyperFrames) · {org.name}
             </p>
           </div>
         </div>
@@ -57,7 +56,6 @@ export default async function StudioPage() {
         <StudioClient
           organizationId={org.id}
           hasAiKey={hasAiKey}
-          hasEditframeKey={hasEditframeKey}
           hasOpenAiKey={hasOpenAiKey}
           hasPexels={hasPexels}
           hasR2={hasR2}

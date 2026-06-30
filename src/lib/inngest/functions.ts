@@ -6,18 +6,14 @@ import { computeNextScheduledAt } from "@/lib/publishing/schedule";
 import type { BufferAsset } from "@/lib/publishing/types";
 import { dispatchVideoRenderWorkflow, isGitHubRenderConfigured } from "@/lib/video/github-actions";
 import { buildSlideshowHtml, resolveDimensions } from "@/lib/video/editframe-composition";
-import {
-  downloadEditframeRender,
-  getEditframeRenderStatus,
-  startEditframeRender,
-} from "@/lib/video/editframe";
+import { isHyperframesRenderConfigured, renderSlideshowWithHyperframes } from "@/lib/video/hyperframes";
+import { buildSlideshowRenderGuide } from "@/lib/video/render-guide";
 import { generateImageWithOpenAI, searchPexelsImageUrl } from "@/lib/media/images";
 import { synthesizeVoice, DEFAULT_VOICE } from "@/lib/tts/synthesize";
 import { isR2Configured, uploadPublicAsset } from "@/lib/storage/r2";
 import {
   getActiveAiProviderForOrg,
   getBufferAccessTokenForOrg,
-  getEditframeApiKeyForOrg,
   getFirstActiveAiKeyForOrg,
   getRawApiKeyForOrg,
   touchApiKeyUsed,
@@ -327,7 +323,7 @@ export const publishToBuffer = inngest.createFunction(
 export const slideshowPipelineV1 = inngest.createFunction(
   {
     id: "fabrica-slideshow-pipeline-v1",
-    name: "Slideshow pipeline v1 (Editframe)",
+    name: "Slideshow pipeline v1 (HyperFrames)",
     triggers: [{ event: "content/slideshow.requested" }],
   },
   async ({ event, step }) => {
@@ -534,12 +530,17 @@ export const slideshowPipelineV1 = inngest.createFunction(
         slideAudioUrls,
       });
 
-      const editframeKey = await step.run("resolve-editframe-key", () =>
-        getEditframeApiKeyForOrg(organizationId),
-      );
-      if (!editframeKey) {
-        throw new Error("No active Editframe API key configured for this organization");
-      }
+      const renderGuide = buildSlideshowRenderGuide(composition, { title: plan.title });
+
+      const compositionHtmlUrl = await step.run("store-composition-html", async () => {
+        if (!isR2Configured()) return null;
+        const { publicUrl } = await uploadPublicAsset(
+          `slideshows/${organizationId}/${job.id}-composition.html`,
+          Buffer.from(composition.html, "utf8"),
+          "text/html; charset=utf-8",
+        );
+        return publicUrl ?? null;
+      });
 
       const videoRender = await step.run("create-video-render", () =>
         prisma.videoRender.create({
@@ -555,6 +556,9 @@ export const slideshowPipelineV1 = inngest.createFunction(
               slides: plan.slides.length,
               imageSource,
               voiceover,
+              renderGuide,
+              compositionHtmlUrl,
+              renderEngine: "hyperframes",
             },
           },
         }),
@@ -566,37 +570,18 @@ export const slideshowPipelineV1 = inngest.createFunction(
         }),
       );
 
-      const renderId = await step.run("start-editframe-render", () =>
-        startEditframeRender({
-          apiKey: editframeKey.token,
-          html: composition.html,
-          width: composition.width,
-          height: composition.height,
-          fps: composition.fps,
-          durationMs: composition.durationMs,
-          metadata: { jobId: job.id, organizationId },
-        }),
-      );
-      await step.run("touch-editframe-key", () => touchApiKeyUsed(editframeKey.keyId));
-
-      let completed = false;
-      for (let i = 0; i < 60 && !completed; i += 1) {
-        await step.sleep(`render-poll-wait-${i}`, "5s");
-        const poll = await step.run(`render-poll-${i}`, () =>
-          getEditframeRenderStatus(editframeKey.token, renderId),
-        );
-        if (poll.status === "complete") {
-          completed = true;
-        } else if (poll.status === "failed") {
-          throw new Error(poll.error ?? "Editframe render failed");
+      const outputUrl = await step.run("render-with-hyperframes", async () => {
+        if (!isHyperframesRenderConfigured()) {
+          throw new Error(
+            "Render local deshabilitado. Descargá index.html y seguí las instrucciones de HyperFrames en el job.",
+          );
         }
-      }
-      if (!completed) {
-        throw new Error("Editframe render did not complete in time");
-      }
 
-      const outputUrl = await step.run("store-output", async () => {
-        const { buffer, contentType } = await downloadEditframeRender(editframeKey.token, renderId);
+        const { buffer, contentType } = await renderSlideshowWithHyperframes({
+          html: composition.html,
+          fps: composition.fps,
+        });
+
         if (isR2Configured()) {
           const { publicUrl } = await uploadPublicAsset(
             `slideshows/${organizationId}/${videoRender.id}.mp4`,
@@ -614,7 +599,7 @@ export const slideshowPipelineV1 = inngest.createFunction(
           data: {
             status: "SUCCEEDED",
             outputUrl,
-            assetUrls: { editframeRenderId: renderId },
+            assetUrls: { compositionHtmlUrl, renderEngine: "hyperframes" },
           },
         }),
       );
@@ -634,7 +619,7 @@ export const slideshowPipelineV1 = inngest.createFunction(
             status: "SUCCEEDED",
             completedAt: new Date(),
             progress: 1,
-            output: { title: plan.title, slides: plan.slides.length, outputUrl },
+            output: { title: plan.title, slides: plan.slides.length, outputUrl, renderGuide },
           },
         }),
       );
@@ -648,7 +633,7 @@ export const slideshowPipelineV1 = inngest.createFunction(
         );
       }
 
-      return { ok: true, jobId: job.id, renderId, outputUrl };
+      return { ok: true, jobId: job.id, outputUrl, compositionHtmlUrl };
     } catch (err) {
       await step.run("mark-job-failed", () =>
         prisma.contentJob.update({

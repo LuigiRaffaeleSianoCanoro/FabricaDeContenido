@@ -52,7 +52,7 @@ const features = [
   {
     icon: Video,
     title: "Video con hyperframes",
-    body: "Slideshows animados renderizados en la nube a partir de un prompt, listos para vertical y horizontal.",
+    body: "Slideshows animados con HyperFrames (open source): generá el guion aquí y renderizá localmente o en el servidor, sin API key de video.",
   },
   {
     icon: AudioLines,

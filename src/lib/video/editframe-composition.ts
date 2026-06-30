@@ -60,73 +60,62 @@ const GRADIENTS = [
   "linear-gradient(135deg,#134e4a,#0f172a)",
 ];
 
-const STYLE_BLOCK = `
-<style>
-  * { box-sizing: border-box; }
-  @keyframes ef-fade-up {
-    from { opacity: 0; transform: translateY(48px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  @keyframes ef-kenburns {
-    from { transform: scale(1.05); }
-    to   { transform: scale(1.18); }
-  }
-  @keyframes ef-progress {
-    from { transform: scaleX(0); }
-    to   { transform: scaleX(1); }
-  }
-  .ef-slide-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .ef-scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.5); }
-  .ef-stack { position: absolute; inset: 0; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 28px; padding: 9% 8%; text-align: center; }
-  .ef-heading { color: #fff; font-weight: 800; line-height: 1.05;
-    font-size: clamp(48px, 7vw, 120px); letter-spacing: -0.02em;
-    text-shadow: 0 6px 30px rgba(0,0,0,0.45); }
-  .ef-body { color: rgba(255,255,255,0.88); font-weight: 500; line-height: 1.3;
-    font-size: clamp(26px, 3.2vw, 52px); max-width: 90%;
-    text-shadow: 0 4px 18px rgba(0,0,0,0.4); }
-  .ef-progress-track { position: absolute; left: 0; right: 0; bottom: 0; height: 12px;
-    background: rgba(255,255,255,0.15); }
-  .ef-progress-fill { height: 100%; transform-origin: left center; }
-</style>
-`;
+function slideDurationMs(slide: SlideshowPlan["slides"][number]): number {
+  return Math.max(2500, Math.min(15000, slide.durationMs));
+}
 
-function renderSlide(
+function renderSlideClip(
   slide: SlideshowPlan["slides"][number],
   index: number,
+  startSec: number,
   opts: { accent: string; imageUrl?: string | null; audioUrl?: string | null },
-): string {
-  const durationSec = Math.max(2.5, Math.min(15, slide.durationMs / 1000));
+): { html: string; gsapLines: string[]; durationSec: number } {
+  const durationSec = slideDurationMs(slide) / 1000;
   const gradient = GRADIENTS[index % GRADIENTS.length];
+  const slideId = `slide-${index + 1}`;
+
   const background = opts.imageUrl
-    ? `<ef-image src="${escapeAttr(opts.imageUrl)}" class="ef-slide-bg" style="animation: ef-kenburns ${durationSec}s ease-out both"></ef-image>`
-    : `<div class="ef-slide-bg" style="background:${gradient}"></div>`;
+    ? `<img class="slide-bg" src="${escapeAttr(opts.imageUrl)}" alt="" />`
+    : `<div class="slide-bg" style="background:${gradient}"></div>`;
 
   const body = slide.body?.trim()
-    ? `<div class="ef-body" style="animation: ef-fade-up 0.8s ease-out 0.25s both">${escapeHtml(slide.body)}</div>`
+    ? `<div class="slide-body">${escapeHtml(slide.body)}</div>`
     : "";
 
   const audio = opts.audioUrl
-    ? `<ef-audio src="${escapeAttr(opts.audioUrl)}"></ef-audio>`
+    ? `<audio class="clip" src="${escapeAttr(opts.audioUrl)}" data-start="${startSec}" data-duration="${durationSec}" data-track-index="2" data-volume="1"></audio>`
     : "";
 
-  return `
-    <ef-timegroup mode="fixed" duration="${durationSec}s" class="absolute w-full h-full overflow-hidden">
+  const html = `
+    <div id="${slideId}" class="clip slide" data-start="${startSec}" data-duration="${durationSec}" data-track-index="0">
       ${background}
-      <div class="ef-scrim"></div>
-      <div class="ef-stack">
-        <div class="ef-heading" style="animation: ef-fade-up 0.8s ease-out both">${escapeHtml(slide.heading)}</div>
+      <div class="slide-scrim"></div>
+      <div class="slide-stack">
+        <div class="slide-heading">${escapeHtml(slide.heading)}</div>
         ${body}
       </div>
-      <div class="ef-progress-track">
-        <div class="ef-progress-fill" style="background:${opts.accent}; animation: ef-progress ${durationSec}s linear both"></div>
+      <div class="progress-track">
+        <div class="progress-fill" style="background:${opts.accent}"></div>
       </div>
       ${audio}
-    </ef-timegroup>`;
+    </div>`;
+
+  const gsapLines = [
+    `tl.from("#${slideId} .slide-heading", { opacity: 0, y: 48, duration: 0.8, ease: "power2.out" }, ${startSec});`,
+    ...(slide.body?.trim()
+      ? [`tl.from("#${slideId} .slide-body", { opacity: 0, y: 48, duration: 0.8, ease: "power2.out" }, ${startSec + 0.25});`]
+      : []),
+    `tl.fromTo("#${slideId} .progress-fill", { scaleX: 0 }, { scaleX: 1, duration: ${durationSec}, ease: "none" }, ${startSec});`,
+    ...(opts.imageUrl
+      ? [`tl.fromTo("#${slideId} .slide-bg", { scale: 1.05 }, { scale: 1.18, duration: ${durationSec}, ease: "power1.out" }, ${startSec});`]
+      : []),
+  ];
+
+  return { html, gsapLines, durationSec };
 }
 
 /**
- * Builds an Editframe HTML composition (using ef-* web components) from a slideshow plan.
+ * Builds a HyperFrames HTML composition from a slideshow plan.
  * Pure function — safe to import on both server and client.
  */
 export function buildSlideshowHtml(
@@ -137,32 +126,82 @@ export function buildSlideshowHtml(
   const fps = opts.fps ?? 30;
   const accent = opts.accent ?? "#f97316";
 
-  const slidesHtml = plan.slides
-    .map((slide, i) =>
-      renderSlide(slide, i, {
-        accent,
-        imageUrl: opts.fallbackImageUrls?.[i] ?? undefined,
-        audioUrl: opts.slideAudioUrls?.[i] ?? undefined,
-      }),
-    )
-    .join("\n");
+  let cursorSec = 0;
+  const slideParts: string[] = [];
+  const gsapLines: string[] = [];
 
-  const audioHtml = opts.audioUrl
-    ? `<ef-audio src="${escapeAttr(opts.audioUrl)}"></ef-audio>`
+  for (let i = 0; i < plan.slides.length; i += 1) {
+    const slide = plan.slides[i]!;
+    const part = renderSlideClip(slide, i, cursorSec, {
+      accent,
+      imageUrl: opts.fallbackImageUrls?.[i] ?? undefined,
+      audioUrl: opts.slideAudioUrls?.[i] ?? undefined,
+    });
+    slideParts.push(part.html);
+    gsapLines.push(...part.gsapLines);
+    cursorSec += part.durationSec;
+  }
+
+  const totalDurationSec = cursorSec;
+  const durationMs = Math.round(totalDurationSec * 1000);
+
+  const globalAudio = opts.audioUrl
+    ? `<audio class="clip" src="${escapeAttr(opts.audioUrl)}" data-start="0" data-duration="${totalDurationSec}" data-track-index="2" data-volume="1"></audio>`
     : "";
 
-  const durationMs = plan.slides.reduce(
-    (sum, s) => sum + Math.max(2500, Math.min(15000, s.durationMs)),
-    0,
-  );
-
-  const html = `${STYLE_BLOCK}
-<ef-timegroup mode="contain" class="w-[${width}px] h-[${height}px] bg-[#0a0a0a]" style="font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;">
-  <ef-timegroup mode="sequence" class="absolute w-full h-full">
-${slidesHtml}
-  </ef-timegroup>
-  ${audioHtml}
-</ef-timegroup>`;
+  const html = `<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=${width}, height=${height}" />
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: ${width}px;
+      height: ${height}px;
+      overflow: hidden;
+      background: #0a0a0a;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    .slide { position: absolute; inset: 0; overflow: hidden; }
+    .slide-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform-origin: center center; }
+    .slide-scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.5); }
+    .slide-stack {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 28px; padding: 9% 8%; text-align: center;
+    }
+    .slide-heading {
+      color: #fff; font-weight: 800; line-height: 1.05; font-size: clamp(48px, 7vw, 120px);
+      letter-spacing: -0.02em; text-shadow: 0 6px 30px rgba(0,0,0,0.45);
+    }
+    .slide-body {
+      color: rgba(255,255,255,0.88); font-weight: 500; line-height: 1.3;
+      font-size: clamp(26px, 3.2vw, 52px); max-width: 90%;
+      text-shadow: 0 4px 18px rgba(0,0,0,0.4);
+    }
+    .progress-track { position: absolute; left: 0; right: 0; bottom: 0; height: 12px; background: rgba(255,255,255,0.15); }
+    .progress-fill { height: 100%; transform-origin: left center; transform: scaleX(0); }
+  </style>
+</head>
+<body>
+  <div id="root"
+    data-composition-id="slideshow"
+    data-start="0"
+    data-duration="${totalDurationSec}"
+    data-width="${width}"
+    data-height="${height}">
+${slideParts.join("\n")}
+    ${globalAudio}
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+${gsapLines.map((l) => `    ${l}`).join("\n")}
+    window.__timelines.slideshow = tl;
+  </script>
+</body>
+</html>`;
 
   return { html, width, height, fps, durationMs };
 }
