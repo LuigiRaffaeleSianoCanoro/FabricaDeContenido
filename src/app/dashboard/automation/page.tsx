@@ -35,7 +35,11 @@ export default async function AutomationPage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Autopiloto</h1>
             <p className="text-sm text-muted-foreground">
-              Genera y publica slideshows automáticamente · {org.name}
+              Configuración única del workspace · {org.name}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              No hay una lista de automatizaciones: guardás horarios y prompt aquí, y el autopiloto
+              genera contenido en cada horario programado.
             </p>
           </div>
         </div>
@@ -90,6 +94,7 @@ export default async function AutomationPage() {
             </div>
 
             <AutomationForm
+              key={cfg.updatedAt.toISOString()}
               organizationId={org.id}
               initial={{
                 prompt: cfg.prompt ?? "",
