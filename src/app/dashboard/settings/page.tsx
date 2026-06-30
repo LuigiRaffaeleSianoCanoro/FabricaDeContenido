@@ -70,7 +70,9 @@ export default async function SettingsPage() {
                 className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/50 bg-card/50 px-4 py-3 text-sm"
               >
                 <div>
-                  <span className="font-medium">{k.provider}</span>
+                  <span className="font-medium">
+                    {k.provider === "CUSTOM" && k.label ? k.label : k.provider}
+                  </span>
                   <span className="ml-2 text-muted-foreground">
                     {k.keyFingerprint?.slice(0, 12) ?? "sin huella"}…
                   </span>
@@ -110,6 +112,8 @@ export default async function SettingsPage() {
                   <option value="ANTHROPIC">Anthropic</option>
                   <option value="GEMINI">Gemini</option>
                   <option value="OPENROUTER">OpenRouter</option>
+                  <option value="MINIMAX">MiniMax</option>
+                  <option value="CUSTOM">Otro</option>
                   <option value="EDITFRAME">Editframe (video)</option>
                   <option value="BUFFER">Buffer</option>
                 </select>
@@ -117,6 +121,17 @@ export default async function SettingsPage() {
               <div className="space-y-2">
                 <Label htmlFor="apiKey">Nueva clave</Label>
                 <Input id="apiKey" name="apiKey" type="password" autoComplete="off" required />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="customLabel">
+                  Nombre del servicio <span className="font-normal text-muted-foreground">(solo para «Otro»)</span>
+                </Label>
+                <Input
+                  id="customLabel"
+                  name="customLabel"
+                  placeholder="Cursor, Mistral, DeepSeek…"
+                  autoComplete="off"
+                />
               </div>
             </div>
             <Button type="submit" className="bg-primary">

@@ -1,4 +1,4 @@
-export type AIProviderId = "openai" | "anthropic" | "gemini" | "openrouter";
+export type AIProviderId = "openai" | "anthropic" | "gemini" | "openrouter" | "minimax";
 
 export type TextGenerationParams = {
   model: string;
