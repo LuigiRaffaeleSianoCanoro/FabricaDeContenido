@@ -1,8 +1,11 @@
 import { getServerEnv } from "@/config/env.server";
 import { inngest } from "@/lib/inngest/client";
+import { buildAutopilotIdempotencyKey } from "@/lib/inngest/idempotency";
+import { sendInngestEvent } from "@/lib/inngest/send";
 import { prisma } from "@/lib/db/prisma";
 import { createBufferProvider } from "@/lib/publishing/providers/buffer";
-import { computeNextScheduledAt } from "@/lib/publishing/schedule";
+import { reconcilePendingBufferPosts } from "@/lib/publishing/reconcile-buffer";
+import { computeNextScheduledAt, resolveAutopilotSlotStart } from "@/lib/publishing/schedule";
 import type { BufferAsset } from "@/lib/publishing/types";
 import { dispatchVideoRenderWorkflow, isGitHubRenderConfigured } from "@/lib/video/github-actions";
 import { buildSlideshowHtml, resolveDimensions } from "@/lib/video/editframe-composition";
@@ -191,7 +194,7 @@ export const contentPipelineV1 = inngest.createFunction(
             where: { jobId: job.id, organizationId, status: "APPROVED" },
           });
           for (const row of pending) {
-            await inngest.send({
+            await sendInngestEvent({
               name: "content/publish.requested",
               data: { organizationId, generatedContentId: row.id },
             });
@@ -341,6 +344,7 @@ export const slideshowPipelineV1 = inngest.createFunction(
       imageSource?: string;
       voiceover?: boolean;
       voiceName?: string;
+      idempotencyKey?: string;
     };
     const { organizationId } = data;
 
@@ -368,6 +372,18 @@ export const slideshowPipelineV1 = inngest.createFunction(
     const voiceover = data.voiceover ?? cfg?.voiceover ?? false;
     const voiceName = data.voiceName ?? cfg?.voiceName ?? DEFAULT_VOICE;
 
+    const idempotencyKey = data.idempotencyKey?.trim() || undefined;
+
+    const existingJob = idempotencyKey
+      ? await step.run("check-idempotency", () =>
+          prisma.contentJob.findUnique({ where: { idempotencyKey } }),
+        )
+      : null;
+
+    if (existingJob) {
+      return { ok: true, skipped: true, jobId: existingJob.id, reason: "idempotent" };
+    }
+
     const job = await step.run("create-job", () =>
       prisma.contentJob.create({
         data: {
@@ -377,6 +393,7 @@ export const slideshowPipelineV1 = inngest.createFunction(
           type: "VIDEO_RENDER",
           startedAt: new Date(),
           input: { prompt, platform, slideCount, aspectRatio, imageSource, voiceover },
+          ...(idempotencyKey ? { idempotencyKey } : {}),
         },
       }),
     );
@@ -641,7 +658,7 @@ export const slideshowPipelineV1 = inngest.createFunction(
 
       if (cfg?.autoPost && !requireApproval && outputUrl) {
         await step.run("enqueue-auto-publish", () =>
-          inngest.send({
+          sendInngestEvent({
             name: "content/publish.requested",
             data: { organizationId, generatedContentId: gc.id },
           }),
@@ -690,22 +707,55 @@ export const autopilotTick = inngest.createFunction(
     );
 
     let dispatched = 0;
+    let skipped = 0;
     for (const cfg of due) {
-      await step.run(`dispatch-${cfg.id}`, async () => {
+      const result = await step.run(`dispatch-${cfg.id}`, async () => {
+        const nextRunAt = cfg.nextRunAt ? new Date(cfg.nextRunAt) : null;
+        const slotStart = resolveAutopilotSlotStart(nextRunAt, cfg.postingSchedule, now);
+        const idempotencyKey = buildAutopilotIdempotencyKey(cfg.id, slotStart);
+
+        const existing = await prisma.contentJob.findUnique({ where: { idempotencyKey } });
         const next = computeNextScheduledAt(cfg.postingSchedule, now);
+
         await prisma.contentConfig.update({
           where: { id: cfg.id },
           data: { nextRunAt: next, lastRunAt: now },
         });
-        await inngest.send({
+
+        if (existing) {
+          return { skipped: true as const };
+        }
+
+        await sendInngestEvent({
           name: "content/slideshow.requested",
-          data: { organizationId: cfg.organizationId, contentConfigId: cfg.id },
+          data: {
+            organizationId: cfg.organizationId,
+            contentConfigId: cfg.id,
+            idempotencyKey,
+          },
         });
+        return { skipped: false as const };
       });
-      dispatched += 1;
+      if (result.skipped) {
+        skipped += 1;
+      } else {
+        dispatched += 1;
+      }
     }
 
-    return { dispatched, at: now.toISOString() };
+    return { dispatched, skipped, at: now.toISOString() };
+  },
+);
+
+export const reconcileBufferPosts = inngest.createFunction(
+  {
+    id: "fabrica-reconcile-buffer-posts",
+    name: "Reconcile Buffer post status",
+    triggers: [{ cron: "0 * * * *" }],
+  },
+  async ({ step }) => {
+    const result = await step.run("reconcile", () => reconcilePendingBufferPosts(100));
+    return result;
   },
 );
 
@@ -715,4 +765,5 @@ export const inngestFunctions = [
   publishToBuffer,
   slideshowPipelineV1,
   autopilotTick,
+  reconcileBufferPosts,
 ];

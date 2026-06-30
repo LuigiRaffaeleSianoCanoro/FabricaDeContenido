@@ -10,6 +10,7 @@ import { requireSession } from "@/lib/auth/require-session";
 import { prisma } from "@/lib/db/prisma";
 import { encryptSecret, fingerprintSecret } from "@/lib/encryption/cipher";
 import { slugify } from "@/lib/utils/slugify";
+import { validateBufferApiKey } from "@/lib/publishing/validate-buffer-key";
 import { writeAuditLog } from "@/services/audit-log";
 import type { ApiKeyProvider } from "@prisma/client";
 
@@ -186,6 +187,9 @@ export async function onboardingSaveBuffer(
   const editframeKey = String(formData.get("editframeKey") ?? "").trim();
   if (!organizationId) return { error: "Organización no válida." };
   if (!token) return { error: "Pegá tu API key de Buffer para continuar." };
+
+  const bufferValidation = await validateBufferApiKey(token);
+  if (!bufferValidation.ok) return { error: bufferValidation.message };
 
   const keyErr = encryptionKeyError();
   if (keyErr) return keyErr;
