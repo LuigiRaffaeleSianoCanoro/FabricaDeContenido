@@ -13,6 +13,7 @@ Add these in **Vercel → Project → Settings → Environment Variables** (appl
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk Dashboard → **API Keys** |
 | `CLERK_SECRET_KEY` | Clerk Dashboard → **API Keys** |
 | `DATABASE_URL` | Neon (or Postgres) connection string |
+| `DIRECT_DATABASE_URL` | Optional Neon **direct** URL (no `-pooler`) for `prisma db push` during build; `vercel-build` auto-derives this from pooled URLs when possible |
 | `NEXT_PUBLIC_APP_URL` | Exact site URL, e.g. `https://your-app.vercel.app` |
 | `ENCRYPTION_MASTER_KEY` | 64 hex chars (32 bytes). Generate: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 

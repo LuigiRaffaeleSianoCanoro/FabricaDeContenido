@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Database } from "lucide-react";
 
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import { ServiceHealthBanner } from "@/components/dashboard/service-health-banner";
 import { isPlatformAdminEmail } from "@/lib/auth/admin";
 import {
   getActiveOrganizationForUser,
@@ -106,6 +107,9 @@ export default async function DashboardLayout({
       activeOrganizationId={active?.id ?? null}
       isPlatformAdmin={isPlatformAdminEmail(email)}
     >
+      <div className="px-6 pt-6 lg:px-8 lg:pt-8">
+        <ServiceHealthBanner />
+      </div>
       {children}
     </DashboardShell>
   );

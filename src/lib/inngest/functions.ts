@@ -1,23 +1,22 @@
 import { getServerEnv } from "@/config/env.server";
 import { inngest } from "@/lib/inngest/client";
+import { buildAutopilotIdempotencyKey } from "@/lib/inngest/idempotency";
+import { sendInngestEvent } from "@/lib/inngest/send";
 import { prisma } from "@/lib/db/prisma";
 import { createBufferProvider } from "@/lib/publishing/providers/buffer";
-import { computeNextScheduledAt } from "@/lib/publishing/schedule";
+import { reconcilePendingBufferPosts } from "@/lib/publishing/reconcile-buffer";
+import { computeNextScheduledAt, resolveAutopilotSlotStart } from "@/lib/publishing/schedule";
 import type { BufferAsset } from "@/lib/publishing/types";
 import { dispatchVideoRenderWorkflow, isGitHubRenderConfigured } from "@/lib/video/github-actions";
 import { buildSlideshowHtml, resolveDimensions } from "@/lib/video/editframe-composition";
-import {
-  downloadEditframeRender,
-  getEditframeRenderStatus,
-  startEditframeRender,
-} from "@/lib/video/editframe";
+import { isHyperframesRenderConfigured, renderSlideshowWithHyperframes } from "@/lib/video/hyperframes";
+import { buildSlideshowRenderGuide } from "@/lib/video/render-guide";
 import { generateImageWithOpenAI, searchPexelsImageUrl } from "@/lib/media/images";
 import { synthesizeVoice, DEFAULT_VOICE } from "@/lib/tts/synthesize";
 import { isR2Configured, uploadPublicAsset } from "@/lib/storage/r2";
 import {
   getActiveAiProviderForOrg,
   getBufferAccessTokenForOrg,
-  getEditframeApiKeyForOrg,
   getFirstActiveAiKeyForOrg,
   getRawApiKeyForOrg,
   touchApiKeyUsed,
@@ -191,7 +190,7 @@ export const contentPipelineV1 = inngest.createFunction(
             where: { jobId: job.id, organizationId, status: "APPROVED" },
           });
           for (const row of pending) {
-            await inngest.send({
+            await sendInngestEvent({
               name: "content/publish.requested",
               data: { organizationId, generatedContentId: row.id },
             });
@@ -327,7 +326,7 @@ export const publishToBuffer = inngest.createFunction(
 export const slideshowPipelineV1 = inngest.createFunction(
   {
     id: "fabrica-slideshow-pipeline-v1",
-    name: "Slideshow pipeline v1 (Editframe)",
+    name: "Slideshow pipeline v1 (HyperFrames)",
     triggers: [{ event: "content/slideshow.requested" }],
   },
   async ({ event, step }) => {
@@ -341,6 +340,7 @@ export const slideshowPipelineV1 = inngest.createFunction(
       imageSource?: string;
       voiceover?: boolean;
       voiceName?: string;
+      idempotencyKey?: string;
     };
     const { organizationId } = data;
 
@@ -368,6 +368,18 @@ export const slideshowPipelineV1 = inngest.createFunction(
     const voiceover = data.voiceover ?? cfg?.voiceover ?? false;
     const voiceName = data.voiceName ?? cfg?.voiceName ?? DEFAULT_VOICE;
 
+    const idempotencyKey = data.idempotencyKey?.trim() || undefined;
+
+    const existingJob = idempotencyKey
+      ? await step.run("check-idempotency", () =>
+          prisma.contentJob.findUnique({ where: { idempotencyKey } }),
+        )
+      : null;
+
+    if (existingJob) {
+      return { ok: true, skipped: true, jobId: existingJob.id, reason: "idempotent" };
+    }
+
     const job = await step.run("create-job", () =>
       prisma.contentJob.create({
         data: {
@@ -377,6 +389,7 @@ export const slideshowPipelineV1 = inngest.createFunction(
           type: "VIDEO_RENDER",
           startedAt: new Date(),
           input: { prompt, platform, slideCount, aspectRatio, imageSource, voiceover },
+          ...(idempotencyKey ? { idempotencyKey } : {}),
         },
       }),
     );
@@ -534,12 +547,17 @@ export const slideshowPipelineV1 = inngest.createFunction(
         slideAudioUrls,
       });
 
-      const editframeKey = await step.run("resolve-editframe-key", () =>
-        getEditframeApiKeyForOrg(organizationId),
-      );
-      if (!editframeKey) {
-        throw new Error("No active Editframe API key configured for this organization");
-      }
+      const renderGuide = buildSlideshowRenderGuide(composition, { title: plan.title });
+
+      const compositionHtmlUrl = await step.run("store-composition-html", async () => {
+        if (!isR2Configured()) return null;
+        const { publicUrl } = await uploadPublicAsset(
+          `slideshows/${organizationId}/${job.id}-composition.html`,
+          Buffer.from(composition.html, "utf8"),
+          "text/html; charset=utf-8",
+        );
+        return publicUrl ?? null;
+      });
 
       const videoRender = await step.run("create-video-render", () =>
         prisma.videoRender.create({
@@ -555,6 +573,9 @@ export const slideshowPipelineV1 = inngest.createFunction(
               slides: plan.slides.length,
               imageSource,
               voiceover,
+              renderGuide,
+              compositionHtmlUrl,
+              renderEngine: "hyperframes",
             },
           },
         }),
@@ -566,37 +587,18 @@ export const slideshowPipelineV1 = inngest.createFunction(
         }),
       );
 
-      const renderId = await step.run("start-editframe-render", () =>
-        startEditframeRender({
-          apiKey: editframeKey.token,
-          html: composition.html,
-          width: composition.width,
-          height: composition.height,
-          fps: composition.fps,
-          durationMs: composition.durationMs,
-          metadata: { jobId: job.id, organizationId },
-        }),
-      );
-      await step.run("touch-editframe-key", () => touchApiKeyUsed(editframeKey.keyId));
-
-      let completed = false;
-      for (let i = 0; i < 60 && !completed; i += 1) {
-        await step.sleep(`render-poll-wait-${i}`, "5s");
-        const poll = await step.run(`render-poll-${i}`, () =>
-          getEditframeRenderStatus(editframeKey.token, renderId),
-        );
-        if (poll.status === "complete") {
-          completed = true;
-        } else if (poll.status === "failed") {
-          throw new Error(poll.error ?? "Editframe render failed");
+      const outputUrl = await step.run("render-with-hyperframes", async () => {
+        if (!isHyperframesRenderConfigured()) {
+          throw new Error(
+            "Render local deshabilitado. Descargá index.html y seguí las instrucciones de HyperFrames en el job.",
+          );
         }
-      }
-      if (!completed) {
-        throw new Error("Editframe render did not complete in time");
-      }
 
-      const outputUrl = await step.run("store-output", async () => {
-        const { buffer, contentType } = await downloadEditframeRender(editframeKey.token, renderId);
+        const { buffer, contentType } = await renderSlideshowWithHyperframes({
+          html: composition.html,
+          fps: composition.fps,
+        });
+
         if (isR2Configured()) {
           const { publicUrl } = await uploadPublicAsset(
             `slideshows/${organizationId}/${videoRender.id}.mp4`,
@@ -614,7 +616,7 @@ export const slideshowPipelineV1 = inngest.createFunction(
           data: {
             status: "SUCCEEDED",
             outputUrl,
-            assetUrls: { editframeRenderId: renderId },
+            assetUrls: { compositionHtmlUrl, renderEngine: "hyperframes" },
           },
         }),
       );
@@ -634,21 +636,21 @@ export const slideshowPipelineV1 = inngest.createFunction(
             status: "SUCCEEDED",
             completedAt: new Date(),
             progress: 1,
-            output: { title: plan.title, slides: plan.slides.length, outputUrl },
+            output: { title: plan.title, slides: plan.slides.length, outputUrl, renderGuide },
           },
         }),
       );
 
       if (cfg?.autoPost && !requireApproval && outputUrl) {
         await step.run("enqueue-auto-publish", () =>
-          inngest.send({
+          sendInngestEvent({
             name: "content/publish.requested",
             data: { organizationId, generatedContentId: gc.id },
           }),
         );
       }
 
-      return { ok: true, jobId: job.id, renderId, outputUrl };
+      return { ok: true, jobId: job.id, outputUrl, compositionHtmlUrl };
     } catch (err) {
       await step.run("mark-job-failed", () =>
         prisma.contentJob.update({
@@ -690,22 +692,55 @@ export const autopilotTick = inngest.createFunction(
     );
 
     let dispatched = 0;
+    let skipped = 0;
     for (const cfg of due) {
-      await step.run(`dispatch-${cfg.id}`, async () => {
+      const result = await step.run(`dispatch-${cfg.id}`, async () => {
+        const nextRunAt = cfg.nextRunAt ? new Date(cfg.nextRunAt) : null;
+        const slotStart = resolveAutopilotSlotStart(nextRunAt, cfg.postingSchedule, now);
+        const idempotencyKey = buildAutopilotIdempotencyKey(cfg.id, slotStart);
+
+        const existing = await prisma.contentJob.findUnique({ where: { idempotencyKey } });
         const next = computeNextScheduledAt(cfg.postingSchedule, now);
+
         await prisma.contentConfig.update({
           where: { id: cfg.id },
           data: { nextRunAt: next, lastRunAt: now },
         });
-        await inngest.send({
+
+        if (existing) {
+          return { skipped: true as const };
+        }
+
+        await sendInngestEvent({
           name: "content/slideshow.requested",
-          data: { organizationId: cfg.organizationId, contentConfigId: cfg.id },
+          data: {
+            organizationId: cfg.organizationId,
+            contentConfigId: cfg.id,
+            idempotencyKey,
+          },
         });
+        return { skipped: false as const };
       });
-      dispatched += 1;
+      if (result.skipped) {
+        skipped += 1;
+      } else {
+        dispatched += 1;
+      }
     }
 
-    return { dispatched, at: now.toISOString() };
+    return { dispatched, skipped, at: now.toISOString() };
+  },
+);
+
+export const reconcileBufferPosts = inngest.createFunction(
+  {
+    id: "fabrica-reconcile-buffer-posts",
+    name: "Reconcile Buffer post status",
+    triggers: [{ cron: "0 * * * *" }],
+  },
+  async ({ step }) => {
+    const result = await step.run("reconcile", () => reconcilePendingBufferPosts(100));
+    return result;
   },
 );
 
@@ -715,4 +750,5 @@ export const inngestFunctions = [
   publishToBuffer,
   slideshowPipelineV1,
   autopilotTick,
+  reconcileBufferPosts,
 ];
