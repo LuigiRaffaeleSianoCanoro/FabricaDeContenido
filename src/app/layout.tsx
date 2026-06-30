@@ -1,4 +1,5 @@
 import { ClerkProvider } from "@clerk/nextjs";
+import { esES } from "@clerk/localizations";
 import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Space_Mono } from "next/font/google";
 import { isClerkConfigured } from "@/lib/auth/clerk-config";
@@ -44,7 +45,18 @@ export default function RootLayout({
       className={`${spaceGrotesk.variable} ${spaceMono.variable} h-full bg-background antialiased`}
     >
       <body className="flex min-h-full flex-col">
-        {clerkEnabled ? <ClerkProvider>{children}</ClerkProvider> : children}
+        {clerkEnabled ? (
+          <ClerkProvider
+            localization={esES}
+            appearance={{
+              cssLayerName: "clerk",
+            }}
+          >
+            {children}
+          </ClerkProvider>
+        ) : (
+          children
+        )}
       </body>
     </html>
   );

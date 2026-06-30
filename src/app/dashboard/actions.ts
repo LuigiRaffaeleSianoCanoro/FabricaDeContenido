@@ -9,8 +9,9 @@ import { requireSession } from "@/lib/auth/require-session";
 import { isPlatformAdminEmail } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { encryptSecret, fingerprintSecret } from "@/lib/encryption/cipher";
-import { inngest } from "@/lib/inngest/client";
+import { sendInngestEvent, isInngestUnavailableError } from "@/lib/inngest/send";
 import { syncBufferChannels } from "@/lib/publishing/sync";
+import { validateBufferApiKey } from "@/lib/publishing/validate-buffer-key";
 import { writeAuditLog } from "@/services/audit-log";
 import type { ApiKeyProvider, MemberRole, ContentStatus } from "@prisma/client";
 
@@ -27,6 +28,7 @@ export type PipelineRunActionState = {
 };
 
 function toFriendlyPipelineError(e: unknown): PipelineRunActionState {
+  if (isInngestUnavailableError(e)) return { error: e.message };
   const msg = e instanceof Error ? e.message : String(e);
   if (/no tienes permiso/i.test(msg)) return { error: msg };
   if (/falta contentconfig|contentconfig/i.test(msg)) {
@@ -113,6 +115,11 @@ export async function settingsAddApiKey(formData: FormData) {
     throw new Error("Proveedor no soportado");
   }
 
+  if (provider === "BUFFER") {
+    const validation = await validateBufferApiKey(key);
+    if (!validation.ok) throw new Error(validation.message);
+  }
+
   const env = getServerEnv();
   const enc = encryptSecret(key, env.ENCRYPTION_MASTER_KEY);
   const fp = fingerprintSecret(key);
@@ -193,14 +200,7 @@ export async function requestPipelineRun(
       return { error: "Completa el onboarding para crear una configuración de contenido." };
     }
 
-    if (!process.env.INNGEST_EVENT_KEY?.trim()) {
-      return {
-        error:
-          "La cola de trabajos (Inngest) no está configurada. Añade INNGEST_EVENT_KEY en Vercel o ejecuta la app con el servidor de desarrollo de Inngest en local.",
-      };
-    }
-
-    await inngest.send({
+    await sendInngestEvent({
       name: "content/pipeline.requested",
       data: { organizationId, contentConfigId: cfg.id },
     });
@@ -245,7 +245,7 @@ export async function approveGeneratedContent(formData: FormData) {
   });
 
   if (cfg?.autoPost && !cfg.requireApproval) {
-    await inngest.send({
+    await sendInngestEvent({
       name: "content/publish.requested",
       data: { organizationId, generatedContentId: id },
     });
@@ -284,7 +284,7 @@ export async function publishGeneratedContent(formData: FormData) {
     );
   }
 
-  await inngest.send({
+  await sendInngestEvent({
     name: "content/publish.requested",
     data: { organizationId, generatedContentId: id, publishNow },
   });
@@ -374,7 +374,7 @@ export async function retryJobAction(formData: FormData) {
   });
   if (!cfg) throw new Error("Falta ContentConfig");
 
-  await inngest.send({
+  await sendInngestEvent({
     name: "content/pipeline.requested",
     data: { organizationId, contentConfigId: cfg.id },
   });
