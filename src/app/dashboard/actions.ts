@@ -9,8 +9,9 @@ import { requireSession } from "@/lib/auth/require-session";
 import { isPlatformAdminEmail } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { encryptSecret, fingerprintSecret } from "@/lib/encryption/cipher";
-import { inngest } from "@/lib/inngest/client";
+import { sendInngestEvent } from "@/lib/inngest/send";
 import { syncBufferChannels } from "@/lib/publishing/sync";
+import { validateBufferApiKey } from "@/lib/publishing/validate-buffer-key";
 import { writeAuditLog } from "@/services/audit-log";
 import type { ApiKeyProvider, MemberRole, ContentStatus } from "@prisma/client";
 
@@ -100,6 +101,11 @@ export async function settingsAddApiKey(formData: FormData) {
     throw new Error("Indicá el nombre del servicio para claves «Otro».");
   }
 
+  if (provider === "BUFFER") {
+    const validation = await validateBufferApiKey(key);
+    if (!validation.ok) throw new Error(validation.message);
+  }
+
   const env = getServerEnv();
   const enc = encryptSecret(key, env.ENCRYPTION_MASTER_KEY);
   const fp = fingerprintSecret(key);
@@ -176,7 +182,7 @@ export async function requestPipelineRun(formData: FormData) {
   });
   if (!cfg) throw new Error("Falta ContentConfig (usa onboarding)");
 
-  await inngest.send({
+  await sendInngestEvent({
     name: "content/pipeline.requested",
     data: { organizationId, contentConfigId: cfg.id },
   });
@@ -213,7 +219,7 @@ export async function approveGeneratedContent(formData: FormData) {
   });
 
   if (cfg?.autoPost && !cfg.requireApproval) {
-    await inngest.send({
+    await sendInngestEvent({
       name: "content/publish.requested",
       data: { organizationId, generatedContentId: id },
     });
@@ -252,7 +258,7 @@ export async function publishGeneratedContent(formData: FormData) {
     );
   }
 
-  await inngest.send({
+  await sendInngestEvent({
     name: "content/publish.requested",
     data: { organizationId, generatedContentId: id, publishNow },
   });
@@ -342,7 +348,7 @@ export async function retryJobAction(formData: FormData) {
   });
   if (!cfg) throw new Error("Falta ContentConfig");
 
-  await inngest.send({
+  await sendInngestEvent({
     name: "content/pipeline.requested",
     data: { organizationId, contentConfigId: cfg.id },
   });
