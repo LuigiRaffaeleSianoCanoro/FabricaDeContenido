@@ -1,3 +1,4 @@
+@layer theme, base, clerk, components, utilities;
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -371,6 +372,40 @@
   background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: gradient-shift 6s ease infinite;
+}
+
+/* Clerk auth: keep prebuilt form controls inside our glass card on all viewports. */
+@layer components {
+  .clerk-auth-shell {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .clerk-auth-shell :where([class*="cl-rootBox"], [class*="cl-cardBox"], [class*="cl-card"], [class*="cl-main"], [class*="cl-scrollBox"], [class*="cl-form"]) {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .clerk-auth-shell :where([class*="cl-formFieldInput"], [class*="cl-input"], input:not([type="checkbox"]):not([type="radio"])) {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .clerk-auth-shell :where([class*="cl-formFieldRow"]) {
+    width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .clerk-auth-shell :where([class*="cl-socialButtonsBlockButton"], [class*="cl-formButtonPrimary"]) {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

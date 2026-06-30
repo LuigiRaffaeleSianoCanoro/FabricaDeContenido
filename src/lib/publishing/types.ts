@@ -37,9 +37,15 @@ export type BufferPostResult = {
   raw: unknown;
 };
 
+export type BufferPostStatus = {
+  id: string;
+  status: string;
+};
+
 export interface BufferPublishingProvider {
   readonly providerId: "buffer";
   getAccount(apiKey: string): Promise<BufferAccount>;
   listChannels(apiKey: string, organizationId: string): Promise<BufferChannel[]>;
   createPost(apiKey: string, params: CreateBufferPostParams): Promise<BufferPostResult>;
+  getPost(apiKey: string, postId: string): Promise<BufferPostStatus>;
 }

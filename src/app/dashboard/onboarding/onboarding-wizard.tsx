@@ -161,7 +161,7 @@ export function OnboardingWizard({ initialStep, initialOrgId }: Props) {
             title="Conectá tu IA"
             subtitle="Elegí tu proveedor y traé tu propia API key. Se guarda cifrada (AES-256)."
           >
-            <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
               {AI_PROVIDER_ORDER.map((id) => {
                 const g = AI_PROVIDER_GUIDES[id];
                 const selected = provider === id;
@@ -188,9 +188,23 @@ export function OnboardingWizard({ initialStep, initialOrgId }: Props) {
             <form action={a2} className="mt-5 space-y-4">
               <input type="hidden" name="organizationId" value={effectiveOrgId} />
               <input type="hidden" name="provider" value={provider} />
+              {provider === "CUSTOM" && (
+                <div>
+                  <label htmlFor="customLabel" className={fieldLabel}>
+                    Nombre del servicio
+                  </label>
+                  <input
+                    id="customLabel"
+                    name="customLabel"
+                    required
+                    placeholder="Cursor, Mistral, DeepSeek…"
+                    className={inputClass}
+                  />
+                </div>
+              )}
               <div>
                 <label htmlFor="apiKey" className={fieldLabel}>
-                  API key de {guide.label}
+                  API key{provider === "CUSTOM" ? "" : ` de ${guide.label}`}
                 </label>
                 <input
                   id="apiKey"
@@ -235,20 +249,6 @@ export function OnboardingWizard({ initialStep, initialOrgId }: Props) {
                   required
                   autoComplete="off"
                   placeholder="Pegá tu API key de Buffer"
-                  className={cn(inputClass, "font-mono")}
-                />
-              </div>
-              <div>
-                <label htmlFor="editframeKey" className={fieldLabel}>
-                  API key de Editframe{" "}
-                  <span className="font-normal text-white/40">(opcional · para renderizar videos)</span>
-                </label>
-                <input
-                  id="editframeKey"
-                  name="editframeKey"
-                  type="password"
-                  autoComplete="off"
-                  placeholder="Pegá tu API key de Editframe"
                   className={cn(inputClass, "font-mono")}
                 />
               </div>
@@ -358,15 +358,17 @@ function GuidePanel({ guide }: { guide: KeyGuide }) {
         <span className="text-xs font-semibold uppercase tracking-wider text-white/45">
           Cómo conseguir tu key
         </span>
-        <a
-          href={guide.url}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/15 px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/25"
-        >
-          {guide.urlLabel}
-          <ExternalLink className="size-3.5" />
-        </a>
+        {guide.id !== "CUSTOM" && (
+          <a
+            href={guide.url}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/15 px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/25"
+          >
+            {guide.urlLabel}
+            <ExternalLink className="size-3.5" />
+          </a>
+        )}
       </div>
       <ol className="space-y-2">
         {guide.steps.map((s, i) => (

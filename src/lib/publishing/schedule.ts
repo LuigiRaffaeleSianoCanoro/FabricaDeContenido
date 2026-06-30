@@ -65,3 +65,38 @@ export function computeNextScheduledAt(postingSchedule: unknown, from: Date = ne
 
   return best ?? new Date(from.getTime() + 60 * 60 * 1000);
 }
+
+/**
+ * Slot start time for the autopilot dispatch currently due (idempotency key input).
+ * Uses nextRunAt when set; otherwise the most recent schedule slot at or before `now`.
+ */
+export function resolveAutopilotSlotStart(
+  nextRunAt: Date | null,
+  postingSchedule: unknown,
+  now: Date = new Date(),
+): Date {
+  if (nextRunAt && nextRunAt.getTime() <= now.getTime()) {
+    return nextRunAt;
+  }
+
+  const slots = parseSlots(postingSchedule);
+  if (slots.length === 0) return now;
+
+  let best: Date | null = null;
+  for (let dayOffset = 0; dayOffset >= -7; dayOffset -= 1) {
+    const day = new Date(now);
+    day.setUTCDate(now.getUTCDate() + dayOffset);
+    const dow = day.getUTCDay();
+    for (const slot of slots) {
+      if (slot.dayOfWeek !== undefined && slot.dayOfWeek !== dow) continue;
+      const candidate = new Date(
+        Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), slot.hour, slot.minute, 0, 0),
+      );
+      if (candidate.getTime() <= now.getTime() && (!best || candidate > best)) {
+        best = candidate;
+      }
+    }
+  }
+
+  return best ?? now;
+}

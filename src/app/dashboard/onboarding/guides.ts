@@ -70,6 +70,30 @@ export const AI_PROVIDER_GUIDES: Record<string, KeyGuide> = {
     ],
     note: "Tiene modelos gratis que funcionan con saldo en US$0.",
   },
+  MINIMAX: {
+    id: "MINIMAX",
+    label: "MiniMax",
+    url: "https://platform.minimax.io/user-center/basic-information/interface-key",
+    urlLabel: "Abrir MiniMax · API keys",
+    steps: [
+      "Entrá a platform.minimax.io e iniciá sesión (o creá tu cuenta).",
+      "Andá a User Center → API Keys y tocá «Create new secret key».",
+      "Copiá la key (se muestra una sola vez) y pegala acá abajo.",
+    ],
+    note: "MiniMax usa una API compatible con OpenAI. Si tenés cuenta en minimaxi.com (China), usá ese portal equivalente.",
+  },
+  CUSTOM: {
+    id: "CUSTOM",
+    label: "Otro",
+    url: "https://openrouter.ai/keys",
+    urlLabel: "Documentación del proveedor",
+    steps: [
+      "Escribí abajo el nombre del servicio (ej: Cursor, Mistral, DeepSeek).",
+      "Conseguí la API key en el panel de tu proveedor.",
+      "Pegala acá abajo. La guardamos cifrada aunque aún no generemos contenido con ese servicio.",
+    ],
+    note: "Por ahora solo OpenAI, Anthropic, Gemini, OpenRouter y MiniMax generan contenido. «Otro» sirve para guardar la key y usarla cuando agreguemos soporte.",
+  },
 };
 
 export const BUFFER_GUIDE: KeyGuide = {
@@ -86,4 +110,11 @@ export const BUFFER_GUIDE: KeyGuide = {
   note: "La key es por usuario y solo la puede generar el dueño (owner) de la organización en Buffer. Después sincronizamos tus canales automáticamente.",
 };
 
-export const AI_PROVIDER_ORDER = ["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER"] as const;
+export const AI_PROVIDER_ORDER = [
+  "OPENAI",
+  "ANTHROPIC",
+  "GEMINI",
+  "OPENROUTER",
+  "MINIMAX",
+  "CUSTOM",
+] as const;

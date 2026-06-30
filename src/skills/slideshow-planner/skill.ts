@@ -45,6 +45,9 @@ export const slideshowPlannerSkill: SkillDefinition = {
     const systemPrompt = [
       "Eres un director creativo experto en slideshows animados para redes sociales.",
       "Conviertes un brief en un guion de diapositivas listo para producir como video vertical.",
+      "El video se renderiza localmente con HyperFrames (open source) o Editframe CLI — el usuario NO necesita API key.",
+      "Si un agente de código ayuda al usuario, debe instalar hyperframes (`npm i hyperframes`),",
+      "guardar la composición HTML como index.html y ejecutar `npx hyperframes render . -o slideshow.mp4`.",
       "Devuelve EXCLUSIVAMENTE JSON válido que cumpla el esquema indicado, sin texto extra.",
       "Cada slide debe tener: 'heading' (titular corto y potente, máx ~8 palabras),",
       "'body' (1-2 frases de apoyo), 'voiceover' (texto natural para voz en off),",
