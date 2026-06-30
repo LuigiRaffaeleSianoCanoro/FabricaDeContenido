@@ -123,10 +123,16 @@ export async function onboardingSaveAiKey(
   const organizationId = String(formData.get("organizationId") ?? "");
   const provider = String(formData.get("provider") ?? "OPENAI") as ApiKeyProvider;
   const key = String(formData.get("apiKey") ?? "").trim();
+  const customLabel = String(formData.get("customLabel") ?? "").trim();
   if (!organizationId || !key) return { error: "Faltan datos." };
 
-  if (!["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER"].includes(provider)) {
+  const allowed = ["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER", "MINIMAX", "CUSTOM"] as const;
+  if (!allowed.includes(provider as (typeof allowed)[number])) {
     return { error: "Proveedor no válido." };
+  }
+
+  if (provider === "CUSTOM" && customLabel.length < 2) {
+    return { error: "Indicá el nombre del servicio (ej: Cursor, Mistral)." };
   }
 
   try {
@@ -135,6 +141,8 @@ export async function onboardingSaveAiKey(
     const env = getServerEnv();
     const enc = encryptSecret(key, env.ENCRYPTION_MASTER_KEY);
     const fp = fingerprintSecret(key);
+    const label =
+      provider === "CUSTOM" ? customLabel : `${provider} key`;
 
     await prisma.encryptedApiKey.upsert({
       where: {
@@ -143,13 +151,14 @@ export async function onboardingSaveAiKey(
       create: {
         organizationId,
         provider,
-        label: `${provider} key`,
+        label,
         encryptedPayload: enc.ciphertext,
         iv: enc.iv,
         authTag: enc.authTag,
         keyFingerprint: fp,
       },
       update: {
+        label,
         encryptedPayload: enc.ciphertext,
         iv: enc.iv,
         authTag: enc.authTag,

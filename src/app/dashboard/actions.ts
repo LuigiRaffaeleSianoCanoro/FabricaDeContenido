@@ -79,29 +79,45 @@ export async function settingsAddApiKey(formData: FormData) {
   const organizationId = String(formData.get("organizationId") ?? "").trim();
   const provider = String(formData.get("provider") ?? "OPENAI") as ApiKeyProvider;
   const key = String(formData.get("apiKey") ?? "").trim();
+  const customLabel = String(formData.get("customLabel") ?? "").trim();
   if (!organizationId || !key) throw new Error("Faltan datos");
 
   await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN"]);
-  if (!["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER", "BUFFER", "EDITFRAME"].includes(provider)) {
+  const allowed = [
+    "OPENAI",
+    "ANTHROPIC",
+    "GEMINI",
+    "OPENROUTER",
+    "MINIMAX",
+    "CUSTOM",
+    "BUFFER",
+    "EDITFRAME",
+  ] as const;
+  if (!allowed.includes(provider as (typeof allowed)[number])) {
     throw new Error("Proveedor no soportado");
+  }
+  if (provider === "CUSTOM" && customLabel.length < 2) {
+    throw new Error("Indicá el nombre del servicio para claves «Otro».");
   }
 
   const env = getServerEnv();
   const enc = encryptSecret(key, env.ENCRYPTION_MASTER_KEY);
   const fp = fingerprintSecret(key);
+  const label = provider === "CUSTOM" ? customLabel : `${provider}`;
 
   await prisma.encryptedApiKey.upsert({
     where: { organizationId_provider: { organizationId, provider } },
     create: {
       organizationId,
       provider,
-      label: `${provider}`,
+      label,
       encryptedPayload: enc.ciphertext,
       iv: enc.iv,
       authTag: enc.authTag,
       keyFingerprint: fp,
     },
     update: {
+      label,
       encryptedPayload: enc.ciphertext,
       iv: enc.iv,
       authTag: enc.authTag,

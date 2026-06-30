@@ -15,6 +15,7 @@ export const DEFAULT_TEXT_MODELS: Record<AIProviderId, string> = {
   anthropic: "claude-haiku-4-5-20251001",
   gemini: "gemini-2.0-flash",
   openrouter: "openai/gpt-4o-mini",
+  minimax: "MiniMax-M2.5",
 };
 
 export function defaultTextModel(provider: AIProviderId): string {
