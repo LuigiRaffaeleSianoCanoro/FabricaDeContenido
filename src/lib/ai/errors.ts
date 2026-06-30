@@ -23,6 +23,7 @@ const PROVIDER_LABELS: Record<AIProviderId, string> = {
   anthropic: "Anthropic",
   gemini: "Google Gemini",
   openrouter: "OpenRouter",
+  minimax: "MiniMax",
 };
 
 export function providerLabel(provider: AIProviderId): string {
