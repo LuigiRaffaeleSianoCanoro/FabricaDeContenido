@@ -9,7 +9,7 @@ import { requireSession } from "@/lib/auth/require-session";
 import { isPlatformAdminEmail } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { encryptSecret, fingerprintSecret } from "@/lib/encryption/cipher";
-import { sendInngestEvent } from "@/lib/inngest/send";
+import { sendInngestEvent, isInngestUnavailableError } from "@/lib/inngest/send";
 import { syncBufferChannels } from "@/lib/publishing/sync";
 import { validateBufferApiKey } from "@/lib/publishing/validate-buffer-key";
 import { writeAuditLog } from "@/services/audit-log";
@@ -20,6 +20,34 @@ export type SyncBufferActionState = {
   error?: string;
   synced?: number;
 };
+
+export type PipelineRunActionState = {
+  ok?: boolean;
+  error?: string;
+  message?: string;
+};
+
+function toFriendlyPipelineError(e: unknown): PipelineRunActionState {
+  if (isInngestUnavailableError(e)) return { error: e.message };
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/no tienes permiso/i.test(msg)) return { error: msg };
+  if (/falta contentconfig|contentconfig/i.test(msg)) {
+    return { error: "Completa el onboarding para crear una configuración de contenido." };
+  }
+  if (/inngest|event key|couldn't find an event key/i.test(msg)) {
+    return {
+      error:
+        "La cola de trabajos (Inngest) no está configurada. Añade INNGEST_EVENT_KEY en Vercel o ejecuta la app con el servidor de desarrollo de Inngest en local.",
+    };
+  }
+  if (/database_url|datasource|environment variable|prisma/i.test(msg)) {
+    return {
+      error:
+        "No se pudo conectar con la base de datos. Verifica DATABASE_URL y ejecuta npm run db:push.",
+    };
+  }
+  return { error: `No se pudo iniciar la generación. Detalle: ${msg}` };
+}
 
 function toFriendlySyncBufferError(e: unknown): SyncBufferActionState {
   const msg = e instanceof Error ? e.message : String(e);
@@ -169,26 +197,40 @@ export async function settingsRevokeApiKey(formData: FormData) {
   revalidatePath("/dashboard/settings");
 }
 
-export async function requestPipelineRun(formData: FormData) {
-  const { userId } = await requireSession();
-  const organizationId = String(formData.get("organizationId") ?? "").trim();
-  if (!organizationId) throw new Error("Sin organización");
+export async function requestPipelineRun(
+  _: PipelineRunActionState,
+  formData: FormData,
+): Promise<PipelineRunActionState> {
+  try {
+    const { userId } = await requireSession();
+    const organizationId = String(formData.get("organizationId") ?? "").trim();
+    if (!organizationId) return { error: "Sin organización." };
 
-  await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN", "MEMBER"]);
+    await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN", "MEMBER"]);
 
-  const cfg = await prisma.contentConfig.findFirst({
-    where: { organizationId, isDefault: true },
-    orderBy: { updatedAt: "desc" },
-  });
-  if (!cfg) throw new Error("Falta ContentConfig (usa onboarding)");
+    const cfg = await prisma.contentConfig.findFirst({
+      where: { organizationId, isDefault: true },
+      orderBy: { updatedAt: "desc" },
+    });
+    if (!cfg) {
+      return { error: "Completa el onboarding para crear una configuración de contenido." };
+    }
 
-  await sendInngestEvent({
-    name: "content/pipeline.requested",
-    data: { organizationId, contentConfigId: cfg.id },
-  });
+    await sendInngestEvent({
+      name: "content/pipeline.requested",
+      data: { organizationId, contentConfigId: cfg.id },
+    });
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/jobs");
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/jobs");
+    revalidatePath("/dashboard/content");
+    return {
+      ok: true,
+      message: "Generación iniciada. Revisa Trabajos o Contenido en unos segundos.",
+    };
+  } catch (e) {
+    return toFriendlyPipelineError(e);
+  }
 }
 
 export async function approveGeneratedContent(formData: FormData) {
