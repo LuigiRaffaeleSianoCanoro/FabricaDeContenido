@@ -1,4 +1,5 @@
 import { getServerEnv } from "@/config/env.server";
+import { revalidateDashboardHome } from "@/lib/dashboard/revalidate";
 import { inngest } from "@/lib/inngest/client";
 import { buildAutopilotIdempotencyKey } from "@/lib/inngest/idempotency";
 import { sendInngestEvent } from "@/lib/inngest/send";
@@ -145,6 +146,10 @@ export const contentPipelineV1 = inngest.createFunction(
         return firstId;
       });
 
+      await step.run("revalidate-dashboard-after-content", () => {
+        revalidateDashboardHome();
+      });
+
       await step.run("maybe-dispatch-video", async () => {
         if (!isGitHubRenderConfigured() || !firstGcId) return { skipped: true as const };
         const vr = await prisma.videoRender.create({
@@ -183,6 +188,10 @@ export const contentPipelineV1 = inngest.createFunction(
           },
         }),
       );
+
+      await step.run("revalidate-dashboard-after-job", () => {
+        revalidateDashboardHome();
+      });
 
       if (cfg.autoPost && !cfg.requireApproval && hooks.length > 0) {
         await step.run("enqueue-auto-publish", async () => {
@@ -450,6 +459,10 @@ export const slideshowPipelineV1 = inngest.createFunction(
         }),
       );
 
+      await step.run("revalidate-dashboard-after-content", () => {
+        revalidateDashboardHome();
+      });
+
       const ratio = resolveDimensions(aspectRatio).ratio;
 
       // --- Source background images (optional) ---
@@ -640,6 +653,10 @@ export const slideshowPipelineV1 = inngest.createFunction(
           },
         }),
       );
+
+      await step.run("revalidate-dashboard-after-job", () => {
+        revalidateDashboardHome();
+      });
 
       if (cfg?.autoPost && !requireApproval && outputUrl) {
         await step.run("enqueue-auto-publish", () =>

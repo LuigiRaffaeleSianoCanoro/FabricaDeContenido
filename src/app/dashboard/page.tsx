@@ -12,12 +12,16 @@ import {
 import { redirect } from "next/navigation";
 
 import { AutopilotSummary } from "@/components/dashboard/autopilot-summary";
+import { DashboardPollRefresh } from "@/components/dashboard/dashboard-poll-refresh";
 import { GenerateHooksForm } from "@/components/dashboard/generate-hooks-form";
 import { NextSteps } from "@/components/dashboard/next-steps";
 import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
 import { requireOnboardingComplete } from "@/lib/auth/onboarding-status";
 import { requireSession } from "@/lib/auth/require-session";
 import { prisma } from "@/lib/db/prisma";
+import { getNextStepsState } from "@/services/next-steps";
+
+export const dynamic = "force-dynamic";
 
 const quickActions = [
   {
@@ -61,46 +65,34 @@ export default async function DashboardHomePage() {
     redirect("/dashboard/onboarding");
   }
 
-  const [
-    contentCount,
-    activeJobs,
-    scheduledCount,
-    publishedCount,
-    channelCount,
-    pendingApproval,
-    defaultConfig,
-  ] = await Promise.all([
-    prisma.generatedContent.count({ where: { organizationId: org.id } }),
-    prisma.contentJob.count({
-      where: {
-        organizationId: org.id,
-        status: { in: ["PENDING", "QUEUED", "RUNNING"] },
-      },
-    }),
-    prisma.scheduledPost.count({
-      where: { organizationId: org.id, status: "SCHEDULED" },
-    }),
-    prisma.scheduledPost.count({
-      where: { organizationId: org.id, status: "PUBLISHED" },
-    }),
-    prisma.socialAccount.count({
-      where: { organizationId: org.id, platform: "buffer", isActive: true },
-    }),
-    prisma.generatedContent.count({
-      where: { organizationId: org.id, status: "PENDING_APPROVAL" },
-    }),
-    prisma.contentConfig.findFirst({
-      where: { organizationId: org.id, isDefault: true },
-      select: {
-        isAutopilotActive: true,
-        postingSchedule: true,
-        prompt: true,
-        nextRunAt: true,
-        lastRunAt: true,
-        updatedAt: true,
-      },
-    }),
-  ]);
+  const [nextSteps, contentCount, activeJobs, scheduledCount, publishedCount, defaultConfig] =
+    await Promise.all([
+      getNextStepsState(org.id),
+      prisma.generatedContent.count({ where: { organizationId: org.id } }),
+      prisma.contentJob.count({
+        where: {
+          organizationId: org.id,
+          status: { in: ["PENDING", "QUEUED", "RUNNING"] },
+        },
+      }),
+      prisma.scheduledPost.count({
+        where: { organizationId: org.id, status: "SCHEDULED" },
+      }),
+      prisma.scheduledPost.count({
+        where: { organizationId: org.id, status: "PUBLISHED" },
+      }),
+      prisma.contentConfig.findFirst({
+        where: { organizationId: org.id, isDefault: true },
+        select: {
+          isAutopilotActive: true,
+          postingSchedule: true,
+          prompt: true,
+          nextRunAt: true,
+          lastRunAt: true,
+          updatedAt: true,
+        },
+      }),
+    ]);
 
   const stats = [
     { label: "Contenidos", value: String(contentCount), icon: Sparkles },
@@ -109,8 +101,15 @@ export default async function DashboardHomePage() {
     { label: "Publicados", value: String(publishedCount), icon: TrendingUp },
   ];
 
+  const shouldPoll =
+    nextSteps.contentInProgress ||
+    activeJobs > 0 ||
+    nextSteps.pendingApproval > 0;
+
   return (
     <div className="relative flex min-h-full flex-col overflow-hidden p-6 lg:p-8">
+      <DashboardPollRefresh enabled={shouldPoll} />
+
       <div className="pointer-events-none absolute -right-40 -top-40 size-80 rounded-full bg-primary/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 -left-40 size-60 rounded-full bg-primary/5 blur-3xl" />
 
@@ -164,9 +163,7 @@ export default async function DashboardHomePage() {
       </div>
 
       <div className="relative z-10 mb-8">
-        {defaultConfig ? (
-          <AutopilotSummary config={defaultConfig} />
-        ) : null}
+        {defaultConfig ? <AutopilotSummary config={defaultConfig} /> : null}
       </div>
 
       <div className="relative z-10 flex-1">
@@ -179,7 +176,9 @@ export default async function DashboardHomePage() {
               className="glass group animate-slide-in-left overflow-hidden rounded-2xl p-5 transition-all hover:scale-[1.02] hover:bg-primary/5"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
-              <div className={`absolute inset-0 bg-gradient-to-br ${action.color} opacity-0 transition-opacity group-hover:opacity-100`} />
+              <div
+                className={`absolute inset-0 bg-gradient-to-br ${action.color} opacity-0 transition-opacity group-hover:opacity-100`}
+              />
               <div className="relative z-10 flex items-start justify-between">
                 <div className="flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                   <action.icon className="size-6" />
@@ -196,12 +195,7 @@ export default async function DashboardHomePage() {
       </div>
 
       <div className="relative z-10 mt-8">
-        <NextSteps
-          channelsSynced={channelCount > 0}
-          hasContent={contentCount > 0}
-          autopilotActive={Boolean(defaultConfig?.isAutopilotActive)}
-          pendingApproval={pendingApproval}
-        />
+        <NextSteps {...nextSteps} />
       </div>
     </div>
   );

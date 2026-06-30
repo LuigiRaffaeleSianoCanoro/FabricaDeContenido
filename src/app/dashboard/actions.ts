@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { getServerEnv } from "@/config/env.server";
+import { revalidateDashboardHome } from "@/lib/dashboard/revalidate";
 import { assertOrgRole } from "@/lib/auth/rbac";
 import { setActiveOrganizationCookie } from "@/lib/auth/active-org";
 import { requireSession } from "@/lib/auth/require-session";
@@ -83,6 +84,7 @@ export async function syncBufferChannelsAction(
     });
 
     revalidatePath("/dashboard/settings");
+    revalidateDashboardHome();
     return { ok: true, synced: result.synced };
   } catch (e) {
     return toFriendlySyncBufferError(e);
@@ -268,6 +270,7 @@ export async function approveGeneratedContent(formData: FormData) {
   }
 
   revalidatePath("/dashboard/content");
+  revalidateDashboardHome();
 }
 
 export async function publishGeneratedContent(formData: FormData) {
@@ -314,6 +317,7 @@ export async function publishGeneratedContent(formData: FormData) {
   });
 
   revalidatePath("/dashboard/content");
+  revalidateDashboardHome();
 }
 
 export async function rejectGeneratedContent(formData: FormData) {
@@ -330,6 +334,7 @@ export async function rejectGeneratedContent(formData: FormData) {
   });
 
   revalidatePath("/dashboard/content");
+  revalidateDashboardHome();
 }
 
 const inviteRoles: MemberRole[] = ["VIEWER", "MEMBER", "ADMIN"];
