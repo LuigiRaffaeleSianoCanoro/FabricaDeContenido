@@ -24,7 +24,7 @@ import { publicEnv } from "@/config/public-env";
 import type { OrgWithRole } from "@/lib/auth/active-org";
 import { cn } from "@/lib/utils";
 
-const navItems = [
+const baseNavItems = [
   { href: "/dashboard", label: "Panel", icon: LayoutDashboard },
   { href: "/dashboard/onboarding", label: "Onboarding", icon: Rocket },
   { href: "/dashboard/studio", label: "Studio", icon: Film },
@@ -33,24 +33,32 @@ const navItems = [
   { href: "/dashboard/calendar", label: "Calendario", icon: Calendar },
   { href: "/dashboard/content", label: "Contenido", icon: FileText },
   { href: "/dashboard/settings", label: "Ajustes", icon: Settings },
-  { href: "/dashboard/admin", label: "Admin", icon: Shield },
-];
+] as const;
+
+const adminNavItem = {
+  href: "/dashboard/admin",
+  label: "Admin",
+  icon: Shield,
+} as const;
 
 export function AppSidebar({
   email,
   organizations,
   activeOrganizationId,
+  isPlatformAdmin = false,
   open = false,
   onClose,
 }: {
   email: string;
   organizations: OrgWithRole[];
   activeOrganizationId: string | null;
+  isPlatformAdmin?: boolean;
   /** Controls the slide-in drawer on mobile. Ignored on `lg+` (always shown). */
   open?: boolean;
   onClose?: () => void;
 }) {
   const pathname = usePathname();
+  const navItems = isPlatformAdmin ? [...baseNavItems, adminNavItem] : baseNavItems;
 
   return (
     <aside
@@ -65,12 +73,18 @@ export function AppSidebar({
 
       {/* Logo */}
       <div className="relative z-10 flex h-16 items-center gap-3 px-5">
-        <div className="animate-pulse-glow flex size-9 items-center justify-center rounded-xl bg-primary">
-          <Sparkles className="size-4 text-primary-foreground" />
-        </div>
-        <span className="font-bold tracking-tight text-sidebar-foreground">
-          Fábrica
-        </span>
+        <Link
+          href="/dashboard"
+          onClick={onClose}
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-xl transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <div className="animate-pulse-glow flex size-9 items-center justify-center rounded-xl bg-primary">
+            <Sparkles className="size-4 text-primary-foreground" />
+          </div>
+          <span className="font-bold tracking-tight text-sidebar-foreground">
+            Fábrica
+          </span>
+        </Link>
         <button
           type="button"
           onClick={onClose}

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Database } from "lucide-react";
 
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import { isPlatformAdminEmail } from "@/lib/auth/admin";
 import {
   getActiveOrganizationForUser,
   listUserOrganizations,
@@ -103,6 +104,7 @@ export default async function DashboardLayout({
       email={email}
       organizations={orgs}
       activeOrganizationId={active?.id ?? null}
+      isPlatformAdmin={isPlatformAdminEmail(email)}
     >
       {children}
     </DashboardShell>
