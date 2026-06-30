@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { userMessageForAiError } from "@/lib/ai/errors";
+import { revalidateDashboardHome } from "@/lib/dashboard/revalidate";
 import { assertOrgRole } from "@/lib/auth/rbac";
 import { requireSession } from "@/lib/auth/require-session";
 import { inngest } from "@/lib/inngest/client";
@@ -92,4 +93,5 @@ export async function requestSlideshowRender(formData: FormData) {
 
   revalidatePath("/dashboard/studio");
   revalidatePath("/dashboard/jobs");
+  revalidateDashboardHome();
 }

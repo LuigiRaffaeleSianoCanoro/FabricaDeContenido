@@ -12,12 +12,16 @@ import {
 import { redirect } from "next/navigation";
 
 import { requestPipelineRun } from "@/app/dashboard/actions";
+import { DashboardPollRefresh } from "@/components/dashboard/dashboard-poll-refresh";
 import { NextSteps } from "@/components/dashboard/next-steps";
 import { Button } from "@/components/ui/button";
 import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
 import { requireOnboardingComplete } from "@/lib/auth/onboarding-status";
 import { requireSession } from "@/lib/auth/require-session";
 import { prisma } from "@/lib/db/prisma";
+import { getNextStepsState } from "@/services/next-steps";
+
+export const dynamic = "force-dynamic";
 
 const quickActions = [
   {
@@ -61,15 +65,8 @@ export default async function DashboardHomePage() {
     redirect("/dashboard/onboarding");
   }
 
-  const [
-    contentCount,
-    activeJobs,
-    scheduledCount,
-    publishedCount,
-    channelCount,
-    pendingApproval,
-    defaultConfig,
-  ] = await Promise.all([
+  const [nextSteps, contentCount, activeJobs, scheduledCount, publishedCount] = await Promise.all([
+    getNextStepsState(org.id),
     prisma.generatedContent.count({ where: { organizationId: org.id } }),
     prisma.contentJob.count({
       where: {
@@ -83,16 +80,6 @@ export default async function DashboardHomePage() {
     prisma.scheduledPost.count({
       where: { organizationId: org.id, status: "PUBLISHED" },
     }),
-    prisma.socialAccount.count({
-      where: { organizationId: org.id, platform: "buffer", isActive: true },
-    }),
-    prisma.generatedContent.count({
-      where: { organizationId: org.id, status: "PENDING_APPROVAL" },
-    }),
-    prisma.contentConfig.findFirst({
-      where: { organizationId: org.id, isDefault: true },
-      select: { isAutopilotActive: true },
-    }),
   ]);
 
   const stats = [
@@ -102,8 +89,15 @@ export default async function DashboardHomePage() {
     { label: "Publicados", value: String(publishedCount), icon: TrendingUp },
   ];
 
+  const shouldPoll =
+    nextSteps.contentInProgress ||
+    activeJobs > 0 ||
+    nextSteps.pendingApproval > 0;
+
   return (
     <div className="relative flex min-h-full flex-col overflow-hidden p-6 lg:p-8">
+      <DashboardPollRefresh enabled={shouldPoll} />
+
       <div className="pointer-events-none absolute -right-40 -top-40 size-80 rounded-full bg-primary/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 -left-40 size-60 rounded-full bg-primary/5 blur-3xl" />
 
@@ -188,12 +182,7 @@ export default async function DashboardHomePage() {
       </div>
 
       <div className="relative z-10 mt-8">
-        <NextSteps
-          channelsSynced={channelCount > 0}
-          hasContent={contentCount > 0}
-          autopilotActive={Boolean(defaultConfig?.isAutopilotActive)}
-          pendingApproval={pendingApproval}
-        />
+        <NextSteps {...nextSteps} />
       </div>
     </div>
   );

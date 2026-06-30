@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { revalidateDashboardHome } from "@/lib/dashboard/revalidate";
 import { assertOrgRole } from "@/lib/auth/rbac";
 import { requireSession } from "@/lib/auth/require-session";
 import { prisma } from "@/lib/db/prisma";
@@ -98,6 +99,7 @@ export async function saveAutomationSettings(
     });
 
     revalidatePath("/dashboard/automation");
+    revalidateDashboardHome();
     return { ok: true, message: "Automatización guardada." };
   } catch (e) {
     return toFriendlyAutomationError(e);
@@ -124,4 +126,5 @@ export async function runAutopilotNow(formData: FormData) {
 
   revalidatePath("/dashboard/jobs");
   revalidatePath("/dashboard/automation");
+  revalidateDashboardHome();
 }
