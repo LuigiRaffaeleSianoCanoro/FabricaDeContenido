@@ -252,20 +252,6 @@ export function OnboardingWizard({ initialStep, initialOrgId }: Props) {
                   className={cn(inputClass, "font-mono")}
                 />
               </div>
-              <div>
-                <label htmlFor="editframeKey" className={fieldLabel}>
-                  API key de Editframe{" "}
-                  <span className="font-normal text-white/40">(opcional · para renderizar videos)</span>
-                </label>
-                <input
-                  id="editframeKey"
-                  name="editframeKey"
-                  type="password"
-                  autoComplete="off"
-                  placeholder="Pegá tu API key de Editframe"
-                  className={cn(inputClass, "font-mono")}
-                />
-              </div>
               <ErrorText error={s3.error} />
               <div className="flex gap-2">
                 <BackButton onClick={() => setStep(2)} />

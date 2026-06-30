@@ -193,7 +193,6 @@ export async function onboardingSaveBuffer(
   const organizationId = String(formData.get("organizationId") ?? "");
   const token = String(formData.get("bufferToken") ?? "").trim();
   const profileId = String(formData.get("bufferProfileId") ?? "").trim();
-  const editframeKey = String(formData.get("editframeKey") ?? "").trim();
   if (!organizationId) return { error: "Organización no válida." };
   if (!token) return { error: "Pegá tu API key de Buffer para continuar." };
 
@@ -204,44 +203,6 @@ export async function onboardingSaveBuffer(
   if (keyErr) return keyErr;
 
   await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN"]);
-
-  if (editframeKey) {
-    const env = getServerEnv();
-    const enc = encryptSecret(editframeKey, env.ENCRYPTION_MASTER_KEY);
-    const fp = fingerprintSecret(editframeKey);
-
-    await prisma.encryptedApiKey.upsert({
-      where: {
-        organizationId_provider: { organizationId, provider: "EDITFRAME" },
-      },
-      create: {
-        organizationId,
-        provider: "EDITFRAME",
-        label: "Editframe",
-        encryptedPayload: enc.ciphertext,
-        iv: enc.iv,
-        authTag: enc.authTag,
-        keyFingerprint: fp,
-      },
-      update: {
-        encryptedPayload: enc.ciphertext,
-        iv: enc.iv,
-        authTag: enc.authTag,
-        keyFingerprint: fp,
-        isActive: true,
-        revokedAt: null,
-        lastRotatedAt: new Date(),
-      },
-    });
-
-    await writeAuditLog({
-      organizationId,
-      actorUserId: userId,
-      action: "api_key.upsert",
-      resourceType: "EncryptedApiKey",
-      metadata: { provider: "EDITFRAME" },
-    });
-  }
 
   if (token) {
     const env = getServerEnv();

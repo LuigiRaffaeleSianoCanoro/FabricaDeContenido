@@ -114,7 +114,6 @@ export default async function SettingsPage() {
                   <option value="OPENROUTER">OpenRouter</option>
                   <option value="MINIMAX">MiniMax</option>
                   <option value="CUSTOM">Otro</option>
-                  <option value="EDITFRAME">Editframe (video)</option>
                   <option value="BUFFER">Buffer</option>
                 </select>
               </div>
