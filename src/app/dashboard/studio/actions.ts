@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { userMessageForAiError } from "@/lib/ai/errors";
 import { assertOrgRole } from "@/lib/auth/rbac";
 import { requireSession } from "@/lib/auth/require-session";
-import { inngest } from "@/lib/inngest/client";
+import { sendInngestEvent } from "@/lib/inngest/send";
 import { getActiveAiProviderForOrg, getFirstActiveAiKeyForOrg, touchApiKeyUsed } from "@/services/api-keys";
 import { buildSlideshowHtml } from "@/lib/video/editframe-composition";
 import { buildSlideshowRenderGuide } from "@/lib/video/render-guide";
@@ -97,7 +97,7 @@ export async function requestSlideshowRender(formData: FormData) {
 
   await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN", "MEMBER"]);
 
-  await inngest.send({
+  await sendInngestEvent({
     name: "content/slideshow.requested",
     data: { organizationId, prompt, platform, slideCount, aspectRatio, imageSource, voiceover, voiceName },
   });

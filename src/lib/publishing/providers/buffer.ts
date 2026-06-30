@@ -118,6 +118,22 @@ export class BufferGraphQLProvider implements BufferPublishingProvider {
     }
     return { id: result.post.id, raw: result };
   }
+
+  async getPost(apiKey: string, postId: string): Promise<{ id: string; status: string }> {
+    const data = await bufferGraphQL<{
+      post: { id: string; status: string };
+    }>(
+      apiKey,
+      `query Post($input: PostInput!) {
+        post(input: $input) {
+          id
+          status
+        }
+      }`,
+      { input: { id: postId } },
+    );
+    return data.post;
+  }
 }
 
 export function createBufferProvider(): BufferPublishingProvider {

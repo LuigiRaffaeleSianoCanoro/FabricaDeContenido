@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { inngest } from "@/lib/inngest/client";
+import { sendInngestEvent } from "@/lib/inngest/send";
 import { prisma } from "@/lib/db/prisma";
 import { z } from "zod";
 
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
   if (cfg?.autoPost && !cfg.requireApproval) {
     for (const gc of render.generatedContent) {
       if (gc.status !== "APPROVED") continue;
-      await inngest.send({
+      await sendInngestEvent({
         name: "content/publish.requested",
         data: { organizationId: render.organizationId, generatedContentId: gc.id },
       });

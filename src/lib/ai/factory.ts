@@ -1,6 +1,7 @@
 import type { AIProvider, AIProviderId } from "./types";
 import { AnthropicProvider } from "./providers/anthropic";
 import { GeminiProvider } from "./providers/gemini";
+import { MinimaxProvider } from "./providers/minimax";
 import { OpenAIProvider } from "./providers/openai";
 import { OpenRouterProvider } from "./providers/openrouter";
 
@@ -22,6 +23,8 @@ export function createAIProvider(
       return new GeminiProvider(apiKey, options);
     case "openrouter":
       return new OpenRouterProvider(apiKey);
+    case "minimax":
+      return new MinimaxProvider(apiKey, options);
     default: {
       const _: never = providerId;
       return _;
