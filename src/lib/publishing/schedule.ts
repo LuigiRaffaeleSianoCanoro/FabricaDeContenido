@@ -39,6 +39,15 @@ function parseSlots(postingSchedule: unknown): ScheduleSlot[] {
   return slots.filter((s) => s.hour >= 0 && s.hour <= 23 && s.minute >= 0 && s.minute <= 59);
 }
 
+/** Human-readable schedule for UI (e.g. "09:00, 18:30"). */
+export function formatScheduleForDisplay(postingSchedule: unknown): string {
+  const slots = parseSlots(postingSchedule);
+  if (slots.length === 0) return "";
+  return slots
+    .map((s) => `${String(s.hour).padStart(2, "0")}:${String(s.minute).padStart(2, "0")}`)
+    .join(", ");
+}
+
 export function computeNextScheduledAt(postingSchedule: unknown, from: Date = new Date()): Date {
   const slots = parseSlots(postingSchedule);
   if (slots.length === 0) {

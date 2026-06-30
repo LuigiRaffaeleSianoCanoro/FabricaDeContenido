@@ -291,33 +291,55 @@ export async function onboardingSaveContentConfig(
     .map((s) => s.trim())
     .filter(Boolean);
 
-  await prisma.contentConfig.updateMany({
+  const existing = await prisma.contentConfig.findFirst({
     where: { organizationId, isDefault: true },
-    data: { isDefault: false },
+    orderBy: { updatedAt: "desc" },
   });
 
-  await prisma.contentConfig.create({
-    data: {
+  if (existing) {
+    await prisma.contentConfig.update({
+      where: { id: existing.id },
+      data: {
+        tone,
+        targetAudience: audience,
+        topics,
+        platforms,
+        autoPost,
+        requireApproval,
+      },
+    });
+
+    await writeAuditLog({
       organizationId,
-      name: "Default",
-      isDefault: true,
-      tone,
-      targetAudience: audience,
-      topics,
-      platforms,
-      contentTypes: ["POST"],
-      postsPerDay: 1,
-      autoPost,
-      requireApproval,
-    },
-  });
+      actorUserId: userId,
+      action: "content_config.updated",
+      resourceType: "ContentConfig",
+      resourceId: existing.id,
+    });
+  } else {
+    await prisma.contentConfig.create({
+      data: {
+        organizationId,
+        name: "Default",
+        isDefault: true,
+        tone,
+        targetAudience: audience,
+        topics,
+        platforms,
+        contentTypes: ["POST"],
+        postsPerDay: 1,
+        autoPost,
+        requireApproval,
+      },
+    });
 
-  await writeAuditLog({
-    organizationId,
-    actorUserId: userId,
-    action: "content_config.created",
-    resourceType: "ContentConfig",
-  });
+    await writeAuditLog({
+      organizationId,
+      actorUserId: userId,
+      action: "content_config.created",
+      resourceType: "ContentConfig",
+    });
+  }
 
   revalidatePath("/dashboard");
   redirect("/dashboard");

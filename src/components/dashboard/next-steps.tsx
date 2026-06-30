@@ -60,7 +60,7 @@ export function NextSteps({
       done: autopilotActive,
       icon: Repeat,
       title: "Activá el autopiloto",
-      description: "Definí horarios y publicá en automático.",
+      description: "Definí horarios en Automatización y activá el switch.",
       href: "/dashboard/automation",
       cta: autopilotActive ? "Ajustar" : "Configurar",
     },

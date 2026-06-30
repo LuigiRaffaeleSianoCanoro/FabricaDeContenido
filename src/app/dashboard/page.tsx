@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { redirect } from "next/navigation";
 
+import { AutopilotSummary } from "@/components/dashboard/autopilot-summary";
 import { GenerateHooksForm } from "@/components/dashboard/generate-hooks-form";
 import { NextSteps } from "@/components/dashboard/next-steps";
 import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
@@ -90,7 +91,14 @@ export default async function DashboardHomePage() {
     }),
     prisma.contentConfig.findFirst({
       where: { organizationId: org.id, isDefault: true },
-      select: { isAutopilotActive: true },
+      select: {
+        isAutopilotActive: true,
+        postingSchedule: true,
+        prompt: true,
+        nextRunAt: true,
+        lastRunAt: true,
+        updatedAt: true,
+      },
     }),
   ]);
 
@@ -153,6 +161,12 @@ export default async function DashboardHomePage() {
             </Link>
           </div>
         </div>
+      </div>
+
+      <div className="relative z-10 mb-8">
+        {defaultConfig ? (
+          <AutopilotSummary config={defaultConfig} />
+        ) : null}
       </div>
 
       <div className="relative z-10 flex-1">
