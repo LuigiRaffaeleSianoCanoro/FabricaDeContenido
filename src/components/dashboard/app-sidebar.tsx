@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import {
   LayoutDashboard,
-  Rocket,
   Film,
   Repeat,
   Briefcase,
@@ -26,7 +25,6 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/dashboard", label: "Panel", icon: LayoutDashboard },
-  { href: "/dashboard/onboarding", label: "Onboarding", icon: Rocket },
   { href: "/dashboard/studio", label: "Studio", icon: Film },
   { href: "/dashboard/automation", label: "Automatización", icon: Repeat },
   { href: "/dashboard/jobs", label: "Trabajos", icon: Briefcase },
