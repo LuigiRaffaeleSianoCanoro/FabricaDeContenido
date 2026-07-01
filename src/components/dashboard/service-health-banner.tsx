@@ -4,7 +4,18 @@ import { AlertTriangle } from "lucide-react";
 import { checkAllServicesHealth } from "@/lib/health/services";
 import { inngestUnavailableMessage } from "@/lib/inngest/send";
 
-export async function ServiceHealthBanner() {
+/**
+ * Deployment-level service warnings (Inngest queue, R2 storage) are only
+ * actionable by the platform operator, so we keep this banner out of the way
+ * for regular tenant users and render it for platform admins only.
+ */
+export async function ServiceHealthBanner({
+  isPlatformAdmin,
+}: {
+  isPlatformAdmin: boolean;
+}) {
+  if (!isPlatformAdmin) return null;
+
   const services = await checkAllServicesHealth();
 
   const issues: { title: string; detail: string; href?: string }[] = [];
