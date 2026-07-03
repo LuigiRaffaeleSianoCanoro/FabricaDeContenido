@@ -18,7 +18,9 @@ import {
 import { ShaderBackground } from "@/components/landing/shader-background";
 import { Reveal } from "@/components/landing/reveal";
 import { buttonVariants } from "@/components/ui/button";
+import { PLANS, PLAN_ORDER } from "@/lib/billing/plans";
 import { cn } from "@/lib/utils";
+import { Check } from "lucide-react";
 
 const steps = [
   {
@@ -46,8 +48,8 @@ const steps = [
 const features = [
   {
     icon: KeyRound,
-    title: "Tu propia API key",
-    body: "Trae la IA que quieras —OpenAI, Anthropic, Gemini u OpenRouter—. Tus claves se guardan cifradas (AES-256).",
+    title: "Cualquier proveedor de IA",
+    body: "Traé tu key de OpenAI, Anthropic, Gemini, Groq, Mistral, DeepSeek, xAI y más —o cualquier endpoint compatible—. Cifradas con AES-256.",
   },
   {
     icon: Video,
@@ -132,6 +134,9 @@ export default function HomePage() {
             </a>
             <a href="#features" className="transition-colors hover:text-white">
               Características
+            </a>
+            <a href="#precios" className="transition-colors hover:text-white">
+              Precios
             </a>
             <a href="#autopiloto" className="transition-colors hover:text-white">
               Autopiloto
@@ -296,6 +301,103 @@ export default function HomePage() {
               </Reveal>
             ))}
           </div>
+        </section>
+
+        {/* Pricing */}
+        <section id="precios" className="mx-auto w-[min(72rem,92%)] py-20">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <h2 className="text-balance text-4xl font-bold tracking-tight sm:text-5xl">
+              Empezá gratis con tus keys,{" "}
+              <span className="gradient-text-animated">crecé con créditos</span>
+            </h2>
+            <p className="mt-4 text-lg text-white/60">
+              Freemium BYOK: traé tu API key de cualquier proveedor de IA. En premium,
+              la IA la ponemos nosotros y pagás solo por uso del agente.
+            </p>
+          </Reveal>
+
+          <div className="mt-14 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            {PLAN_ORDER.map((planId, i) => {
+              const p = PLANS[planId];
+              const highlighted = p.id === "PRO";
+              return (
+                <Reveal from="up" delay={i * 90} key={p.id}>
+                  <div
+                    className={cn(
+                      "glass-panel relative flex h-full flex-col rounded-3xl p-6 transition-transform duration-300 hover:-translate-y-1.5",
+                      highlighted && "ring-2 ring-primary",
+                    )}
+                  >
+                    {highlighted && (
+                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-primary-foreground shadow-lg shadow-primary/30">
+                        Recomendado
+                      </span>
+                    )}
+                    <h3 className="text-lg font-semibold">{p.label}</h3>
+                    <p className="mt-2 text-3xl font-bold">
+                      {p.priceMonthlyUsd === null
+                        ? "A medida"
+                        : p.priceMonthlyUsd === 0
+                          ? "Gratis"
+                          : `US$${p.priceMonthlyUsd}`}
+                      {p.priceMonthlyUsd ? (
+                        <span className="text-sm font-normal text-white/50">/mes</span>
+                      ) : null}
+                    </p>
+                    <p className="mt-3 min-h-12 text-sm leading-relaxed text-white/60">
+                      {p.tagline}
+                    </p>
+                    <ul className="mt-5 flex-1 space-y-2 text-sm text-white/70">
+                      <li className="flex items-start gap-2">
+                        <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+                        {p.platformAiIncluded
+                          ? `IA de la plataforma · ${p.monthlyAgentCredits} créditos/mes`
+                          : "BYOK: tu key de cualquier proveedor de IA"}
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+                        {p.monthlyTextGenerations === null
+                          ? "Textos ilimitados"
+                          : `${p.monthlyTextGenerations} textos/mes`}
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+                        {p.monthlyVideoRenders === null
+                          ? "Videos ilimitados"
+                          : `${p.monthlyVideoRenders} videos/mes`}
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+                        {p.maxMembers === null
+                          ? "Miembros ilimitados"
+                          : `${p.maxMembers} ${p.maxMembers === 1 ? "miembro" : "miembros"}`}
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+                        Autopiloto + publicación vía Buffer
+                      </li>
+                    </ul>
+                    <Link
+                      href="/sign-up"
+                      className={cn(
+                        buttonVariants({ size: "lg" }),
+                        "mt-6 w-full rounded-xl font-bold",
+                        highlighted
+                          ? "shimmer relative overflow-hidden bg-primary text-primary-foreground shadow-lg shadow-primary/30"
+                          : "border border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white",
+                      )}
+                    >
+                      {p.priceMonthlyUsd === 0 ? "Empezar gratis" : "Empezar"}
+                    </Link>
+                  </div>
+                </Reveal>
+              );
+            })}
+          </div>
+
+          <p className="mt-8 text-center font-mono text-xs tracking-wider text-white/40">
+            1 crédito = 1 texto · 5 créditos = 1 video · Con tus propias keys nunca consumís créditos
+          </p>
         </section>
 
         {/* Autopilot CTA */}
