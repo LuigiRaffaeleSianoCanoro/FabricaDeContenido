@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { defaultTextModel } from "@/lib/ai/models";
+import { modelForProvider } from "@/lib/ai/models";
 
 import type { SkillDefinition } from "../types";
 
@@ -40,7 +40,7 @@ export const slideshowPlannerSkill: SkillDefinition = {
   outputSchema: SlideshowPlanSchema,
   async execute(inputUnknown, ctx) {
     const input = SlideshowPlannerInputSchema.parse(inputUnknown);
-    const model = defaultTextModel(ctx.ai.providerId);
+    const model = modelForProvider(ctx.ai);
 
     const systemPrompt = [
       "Eres un director creativo experto en slideshows animados para redes sociales.",

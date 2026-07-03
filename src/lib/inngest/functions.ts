@@ -15,13 +15,15 @@ import { buildSlideshowRenderGuide } from "@/lib/video/render-guide";
 import { generateImageWithOpenAI, searchPexelsImageUrl } from "@/lib/media/images";
 import { synthesizeVoice, DEFAULT_VOICE } from "@/lib/tts/synthesize";
 import { isR2Configured, uploadPublicAsset } from "@/lib/storage/r2";
+import { getBufferAccessTokenForOrg, getRawApiKeyForOrg, touchApiKeyUsed } from "@/services/api-keys";
+import { resolveAiForOrg } from "@/services/ai-resolver";
 import {
-  getActiveAiProviderForOrg,
-  getBufferAccessTokenForOrg,
-  getFirstActiveAiKeyForOrg,
-  getRawApiKeyForOrg,
-  touchApiKeyUsed,
-} from "@/services/api-keys";
+  USAGE_METRICS,
+  checkTextQuota,
+  checkVideoQuota,
+  recordGenerationUsage,
+  recordUsage,
+} from "@/services/usage";
 import { getSkill } from "@/skills/registry";
 import { SlideshowPlanSchema } from "@/skills/slideshow-planner/skill";
 
@@ -84,9 +86,9 @@ export const contentPipelineV1 = inngest.createFunction(
     );
 
     try {
-      const keyInfo = await step.run("resolve-ai-key", () => getFirstActiveAiKeyForOrg(organizationId));
-      if (!keyInfo) {
-        throw new Error("No active AI API key configured for this organization");
+      const quota = await step.run("check-text-quota", () => checkTextQuota(organizationId));
+      if (!quota.allowed) {
+        throw new Error(quota.reason ?? "Límite mensual del plan alcanzado.");
       }
 
       const skill = getSkill("hook-generator");
@@ -97,22 +99,30 @@ export const contentPipelineV1 = inngest.createFunction(
       const topic = cfg.topics[0] ?? cfg.tone ?? "tu producto";
       const platform = cfg.platforms[0] ?? "instagram";
 
-      const outputUnknown = await step.run("run-hook-generator", async () => {
-        const ai = await getActiveAiProviderForOrg(organizationId, keyInfo.provider);
-        await touchApiKeyUsed(keyInfo.row.id);
+      const generation = await step.run("run-hook-generator", async () => {
+        const resolved = await resolveAiForOrg(organizationId, "text");
         const out = await skill.execute(
           { topic, platform, count: Math.min(5, cfg.postsPerDay || 3) },
           {
             organizationId,
             jobId: job.id,
-            ai,
+            ai: resolved.ai,
             log: async () => {},
           },
         );
-        return out as { hooks: string[] };
+        return { out: out as { hooks: string[] }, source: resolved.source };
       });
 
-      const hooks = outputUnknown.hooks ?? [];
+      const hooks = generation.out.hooks ?? [];
+
+      await step.run("record-usage", () =>
+        recordGenerationUsage({
+          organizationId,
+          action: "text",
+          source: generation.source,
+          metadata: { jobId: job.id, skill: "hook-generator" },
+        }),
+      );
 
       await step.run("record-skill-execution", () =>
         prisma.skillExecution.create({
@@ -328,6 +338,15 @@ export const publishToBuffer = inngest.createFunction(
       }),
     );
 
+    await step.run("record-usage", () =>
+      recordUsage({
+        organizationId,
+        metric: USAGE_METRICS.publish,
+        quantity: results.length,
+        metadata: { generatedContentId: gc.id, publishNow },
+      }),
+    );
+
     return { ok: true, posts: results.length, scheduledAt: scheduledAt.toISOString() };
   },
 );
@@ -404,9 +423,9 @@ export const slideshowPipelineV1 = inngest.createFunction(
     );
 
     try {
-      const keyInfo = await step.run("resolve-ai-key", () => getFirstActiveAiKeyForOrg(organizationId));
-      if (!keyInfo) {
-        throw new Error("No active AI API key configured for this organization");
+      const quota = await step.run("check-video-quota", () => checkVideoQuota(organizationId));
+      if (!quota.allowed) {
+        throw new Error(quota.reason ?? "Límite mensual del plan alcanzado.");
       }
 
       const skill = getSkill("slideshow-planner");
@@ -414,10 +433,9 @@ export const slideshowPipelineV1 = inngest.createFunction(
         throw new Error("slideshow-planner skill not registered");
       }
 
-      const planUnknown = await step.run("run-slideshow-planner", async () => {
-        const ai = await getActiveAiProviderForOrg(organizationId, keyInfo.provider);
-        await touchApiKeyUsed(keyInfo.row.id);
-        return skill.execute(
+      const planning = await step.run("run-slideshow-planner", async () => {
+        const resolved = await resolveAiForOrg(organizationId, "video");
+        const out = await skill.execute(
           {
             prompt,
             platform,
@@ -425,11 +443,13 @@ export const slideshowPipelineV1 = inngest.createFunction(
             targetAudience: cfg?.targetAudience ?? "audiencia general",
             slideCount,
           },
-          { organizationId, jobId: job.id, ai, log: async () => {} },
+          { organizationId, jobId: job.id, ai: resolved.ai, log: async () => {} },
         );
+        return { out, source: resolved.source };
       });
 
-      const plan = SlideshowPlanSchema.parse(planUnknown);
+      const plan = SlideshowPlanSchema.parse(planning.out);
+      const aiSource = planning.source;
 
       await step.run("record-skill-execution", () =>
         prisma.skillExecution.create({
@@ -654,6 +674,15 @@ export const slideshowPipelineV1 = inngest.createFunction(
         }),
       );
 
+      await step.run("record-usage", () =>
+        recordGenerationUsage({
+          organizationId,
+          action: "video",
+          source: aiSource,
+          metadata: { jobId: job.id, skill: "slideshow-planner" },
+        }),
+      );
+
       await step.run("revalidate-dashboard-after-job", () => {
         revalidateDashboardHome();
       });
@@ -710,6 +739,7 @@ export const autopilotTick = inngest.createFunction(
 
     let dispatched = 0;
     let skipped = 0;
+    let quotaSkipped = 0;
     for (const cfg of due) {
       const result = await step.run(`dispatch-${cfg.id}`, async () => {
         const nextRunAt = cfg.nextRunAt ? new Date(cfg.nextRunAt) : null;
@@ -725,7 +755,13 @@ export const autopilotTick = inngest.createFunction(
         });
 
         if (existing) {
-          return { skipped: true as const };
+          return { skipped: true as const, reason: "idempotent" as const };
+        }
+
+        // Plan quota gate: skip the slot silently instead of queuing a job that would fail.
+        const quota = await checkVideoQuota(cfg.organizationId);
+        if (!quota.allowed) {
+          return { skipped: true as const, reason: "quota" as const };
         }
 
         await sendInngestEvent({
@@ -739,13 +775,14 @@ export const autopilotTick = inngest.createFunction(
         return { skipped: false as const };
       });
       if (result.skipped) {
-        skipped += 1;
+        if (result.reason === "quota") quotaSkipped += 1;
+        else skipped += 1;
       } else {
         dispatched += 1;
       }
     }
 
-    return { dispatched, skipped, at: now.toISOString() };
+    return { dispatched, skipped, quotaSkipped, at: now.toISOString() };
   },
 );
 

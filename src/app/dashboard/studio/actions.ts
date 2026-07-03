@@ -7,7 +7,8 @@ import { revalidateDashboardHome } from "@/lib/dashboard/revalidate";
 import { assertOrgRole } from "@/lib/auth/rbac";
 import { requireSession } from "@/lib/auth/require-session";
 import { sendInngestEvent } from "@/lib/inngest/send";
-import { getActiveAiProviderForOrg, getFirstActiveAiKeyForOrg, touchApiKeyUsed } from "@/services/api-keys";
+import { AiUnavailableError, resolveAiForOrg } from "@/services/ai-resolver";
+import { checkTextQuota, checkVideoQuota, recordGenerationUsage } from "@/services/usage";
 import { buildSlideshowHtml } from "@/lib/video/editframe-composition";
 import { buildSlideshowRenderGuide } from "@/lib/video/render-guide";
 import { getSkill } from "@/skills/registry";
@@ -49,22 +50,27 @@ export async function generateSlideshowPlan(
 
   await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN", "MEMBER"]);
 
-  const keyInfo = await getFirstActiveAiKeyForOrg(organizationId);
-  if (!keyInfo) {
-    return { error: "No hay una API key de IA activa. Añádela en Ajustes.", ...passthrough };
+  const quota = await checkTextQuota(organizationId);
+  if (!quota.allowed) {
+    return { error: quota.reason, ...passthrough };
   }
 
   const skill = getSkill("slideshow-planner");
   if (!skill) return { error: "Skill slideshow-planner no registrado.", ...passthrough };
 
   try {
-    const ai = await getActiveAiProviderForOrg(organizationId, keyInfo.provider);
-    await touchApiKeyUsed(keyInfo.row.id);
+    const resolved = await resolveAiForOrg(organizationId, "text");
     const planUnknown = await skill.execute(
       { prompt, platform, slideCount },
-      { organizationId, jobId: "preview", ai, log: async () => {} },
+      { organizationId, jobId: "preview", ai: resolved.ai, log: async () => {} },
     );
     const plan = SlideshowPlanSchema.parse(planUnknown);
+    await recordGenerationUsage({
+      organizationId,
+      action: "text",
+      source: resolved.source,
+      metadata: { surface: "studio_preview" },
+    });
     const composition = buildSlideshowHtml(plan, { aspectRatio });
     const renderGuide = buildSlideshowRenderGuide(composition, { title: plan.title });
     return {
@@ -75,6 +81,9 @@ export async function generateSlideshowPlan(
       ...passthrough,
     };
   } catch (err) {
+    if (err instanceof AiUnavailableError) {
+      return { error: err.message, ...passthrough };
+    }
     console.error("[studio] generateSlideshowPlan failed", err);
     return {
       error: userMessageForAiError(err, "No se pudo generar el guion. Inténtalo de nuevo."),
@@ -97,6 +106,11 @@ export async function requestSlideshowRender(formData: FormData) {
   if (!organizationId || prompt.length < 3) throw new Error("Datos inválidos");
 
   await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN", "MEMBER"]);
+
+  const quota = await checkVideoQuota(organizationId);
+  if (!quota.allowed) {
+    throw new Error(quota.reason);
+  }
 
   await sendInngestEvent({
     name: "content/slideshow.requested",

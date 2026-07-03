@@ -113,7 +113,12 @@ export default async function SettingsPage() {
                   <option value="GEMINI">Gemini</option>
                   <option value="OPENROUTER">OpenRouter</option>
                   <option value="MINIMAX">MiniMax</option>
-                  <option value="CUSTOM">Otro</option>
+                  <option value="GROQ">Groq</option>
+                  <option value="MISTRAL">Mistral</option>
+                  <option value="DEEPSEEK">DeepSeek</option>
+                  <option value="XAI">xAI (Grok)</option>
+                  <option value="TOGETHER">Together AI</option>
+                  <option value="CUSTOM">Otro (OpenAI-compatible)</option>
                   <option value="BUFFER">Buffer</option>
                 </select>
               </div>
@@ -128,7 +133,29 @@ export default async function SettingsPage() {
                 <Input
                   id="customLabel"
                   name="customLabel"
-                  placeholder="Cursor, Mistral, DeepSeek…"
+                  placeholder="Cerebras, Fireworks, mi proxy…"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customBaseUrl">
+                  URL base <span className="font-normal text-muted-foreground">(solo «Otro»)</span>
+                </Label>
+                <Input
+                  id="customBaseUrl"
+                  name="customBaseUrl"
+                  placeholder="https://api.miproveedor.com/v1"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customModel">
+                  Modelo <span className="font-normal text-muted-foreground">(opcional, solo «Otro»)</span>
+                </Label>
+                <Input
+                  id="customModel"
+                  name="customModel"
+                  placeholder="llama-3.3-70b"
                   autoComplete="off"
                 />
               </div>

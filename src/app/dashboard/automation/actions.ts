@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db/prisma";
 import { sendInngestEvent } from "@/lib/inngest/send";
 import { computeNextScheduledAt } from "@/lib/publishing/schedule";
 import { writeAuditLog } from "@/services/audit-log";
+import { checkVideoQuota } from "@/services/usage";
 
 function parseSchedule(raw: string): string[] {
   return raw
@@ -118,6 +119,11 @@ export async function runAutopilotNow(formData: FormData) {
     orderBy: { updatedAt: "desc" },
   });
   if (!cfg) throw new Error("Falta configuración por defecto (onboarding).");
+
+  const quota = await checkVideoQuota(organizationId);
+  if (!quota.allowed) {
+    throw new Error(quota.reason);
+  }
 
   await sendInngestEvent({
     name: "content/slideshow.requested",

@@ -30,6 +30,11 @@ enum ApiKeyProvider {
   GEMINI
   OPENROUTER
   MINIMAX
+  GROQ
+  MISTRAL
+  DEEPSEEK
+  XAI
+  TOGETHER
   BUFFER
   EDITFRAME
   CUSTOM
@@ -112,6 +117,8 @@ model Organization {
   slug      String   @unique
   ownerId   String
   plan      Plan     @default(FREE)
+  /// Extra agent credits granted on top of the plan's monthly allowance (top-ups).
+  bonusCredits Int   @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -151,6 +158,8 @@ model EncryptedApiKey {
   iv               String
   authTag          String
   keyFingerprint   String
+  /// Provider-specific settings, e.g. { "baseUrl": "...", "model": "..." } for CUSTOM keys.
+  metadata         Json           @default("{}")
   lastUsedAt       DateTime?
   lastRotatedAt    DateTime       @default(now())
   revokedAt        DateTime?

@@ -37,6 +37,7 @@ export async function GET() {
         process.env.R2_BUCKET_NAME,
     ),
     PEXELS_API_KEY: Boolean(process.env.PEXELS_API_KEY),
+    PLATFORM_AI_CONFIGURED: Boolean(process.env.PLATFORM_AI_API_KEY),
   };
 
   const servicesCriticalFailure = (

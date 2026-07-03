@@ -3,7 +3,9 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 
+import { getPlan } from "@/lib/billing/plans";
 import { prisma } from "@/lib/db/prisma";
+import { isPlatformAiConfigured } from "@/services/ai-resolver";
 import { getActiveOrganizationForUser } from "./active-org";
 import { requireSession } from "./require-session";
 
@@ -13,6 +15,11 @@ const AI_PROVIDERS = [
   "GEMINI",
   "OPENROUTER",
   "MINIMAX",
+  "GROQ",
+  "MISTRAL",
+  "DEEPSEEK",
+  "XAI",
+  "TOGETHER",
   "CUSTOM",
 ] as const;
 
@@ -72,7 +79,12 @@ export const getOnboardingStatus = cache(
       }),
     ]);
 
-    const hasAiKey = Boolean(aiKey);
+    // Premium plans ("agent usage") don't need a tenant key: the platform AI
+    // covers the IA step, so onboarding shouldn't block on BYOK.
+    const platformAiCoversOrg =
+      getPlan(org.plan).platformAiIncluded && isPlatformAiConfigured();
+
+    const hasAiKey = Boolean(aiKey) || platformAiCoversOrg;
     const hasBuffer = Boolean(bufferKey);
     const hasConfig = Boolean(config);
 
