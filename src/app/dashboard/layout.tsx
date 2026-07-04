@@ -81,6 +81,7 @@ export default async function DashboardLayout({
   }
 
   const email = user.emailAddresses[0]?.emailAddress ?? "";
+  const isPlatformAdmin = isPlatformAdminEmail(email);
 
   let orgs: OrgWithRole[] = [];
   let active: { id: string } | null = null;
@@ -105,11 +106,13 @@ export default async function DashboardLayout({
       email={email}
       organizations={orgs}
       activeOrganizationId={active?.id ?? null}
-      isPlatformAdmin={isPlatformAdminEmail(email)}
+      isPlatformAdmin={isPlatformAdmin}
     >
-      <div className="px-6 pt-6 lg:px-8 lg:pt-8">
-        <ServiceHealthBanner />
-      </div>
+      {isPlatformAdmin ? (
+        <div className="px-6 pt-6 lg:px-8 lg:pt-8">
+          <ServiceHealthBanner isPlatformAdmin={isPlatformAdmin} />
+        </div>
+      ) : null}
       {children}
     </DashboardShell>
   );
