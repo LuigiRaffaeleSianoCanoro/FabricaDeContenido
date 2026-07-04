@@ -46,6 +46,27 @@ const envSchema = z.object({
 
   /** Optional platform-level Pexels key for free stock images on slideshows. */
   PEXELS_API_KEY: z.string().optional(),
+
+  /** Platform AI key for premium plans ("agent usage"). Never a tenant key. */
+  PLATFORM_AI_PROVIDER: z
+    .enum([
+      "openai",
+      "anthropic",
+      "gemini",
+      "openrouter",
+      "minimax",
+      "groq",
+      "mistral",
+      "deepseek",
+      "xai",
+      "together",
+      "custom",
+    ])
+    .optional(),
+  PLATFORM_AI_API_KEY: z.string().optional(),
+  /** Required when PLATFORM_AI_PROVIDER=custom (OpenAI-compatible endpoint). */
+  PLATFORM_AI_BASE_URL: z.string().url().optional(),
+  PLATFORM_AI_MODEL: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof envSchema>;

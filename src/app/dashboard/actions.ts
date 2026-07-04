@@ -14,6 +14,7 @@ import { sendInngestEvent, isInngestUnavailableError } from "@/lib/inngest/send"
 import { syncBufferChannels } from "@/lib/publishing/sync";
 import { validateBufferApiKey } from "@/lib/publishing/validate-buffer-key";
 import { writeAuditLog } from "@/services/audit-log";
+import { checkMembersQuota, checkTextQuota } from "@/services/usage";
 import type { ApiKeyProvider, MemberRole, ContentStatus } from "@prisma/client";
 
 export type SyncBufferActionState = {
@@ -111,6 +112,8 @@ export async function settingsAddApiKey(formData: FormData) {
   const provider = String(formData.get("provider") ?? "OPENAI") as ApiKeyProvider;
   const key = String(formData.get("apiKey") ?? "").trim();
   const customLabel = String(formData.get("customLabel") ?? "").trim();
+  const customBaseUrl = String(formData.get("customBaseUrl") ?? "").trim();
+  const customModel = String(formData.get("customModel") ?? "").trim();
   if (!organizationId || !key) throw new Error("Faltan datos");
 
   await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN"]);
@@ -120,6 +123,11 @@ export async function settingsAddApiKey(formData: FormData) {
     "GEMINI",
     "OPENROUTER",
     "MINIMAX",
+    "GROQ",
+    "MISTRAL",
+    "DEEPSEEK",
+    "XAI",
+    "TOGETHER",
     "CUSTOM",
     "BUFFER",
     "EDITFRAME",
@@ -127,8 +135,15 @@ export async function settingsAddApiKey(formData: FormData) {
   if (!allowed.includes(provider as (typeof allowed)[number])) {
     throw new Error("Proveedor no soportado");
   }
-  if (provider === "CUSTOM" && customLabel.length < 2) {
-    throw new Error("Indicá el nombre del servicio para claves «Otro».");
+  if (provider === "CUSTOM") {
+    if (customLabel.length < 2) {
+      throw new Error("Indicá el nombre del servicio para claves «Otro».");
+    }
+    if (!/^https?:\/\//.test(customBaseUrl)) {
+      throw new Error(
+        "Indicá la URL base del endpoint compatible con OpenAI (ej: https://api.miproveedor.com/v1).",
+      );
+    }
   }
 
   if (provider === "BUFFER") {
@@ -140,6 +155,10 @@ export async function settingsAddApiKey(formData: FormData) {
   const enc = encryptSecret(key, env.ENCRYPTION_MASTER_KEY);
   const fp = fingerprintSecret(key);
   const label = provider === "CUSTOM" ? customLabel : `${provider}`;
+  const metadata =
+    provider === "CUSTOM"
+      ? { baseUrl: customBaseUrl, ...(customModel ? { model: customModel } : {}) }
+      : {};
 
   await prisma.encryptedApiKey.upsert({
     where: { organizationId_provider: { organizationId, provider } },
@@ -151,6 +170,7 @@ export async function settingsAddApiKey(formData: FormData) {
       iv: enc.iv,
       authTag: enc.authTag,
       keyFingerprint: fp,
+      metadata,
     },
     update: {
       label,
@@ -158,6 +178,7 @@ export async function settingsAddApiKey(formData: FormData) {
       iv: enc.iv,
       authTag: enc.authTag,
       keyFingerprint: fp,
+      metadata,
       isActive: true,
       revokedAt: null,
       lastRotatedAt: new Date(),
@@ -218,6 +239,11 @@ export async function requestPipelineRun(
       return { error: "Completa el onboarding para crear una configuración de contenido." };
     }
 
+    const quota = await checkTextQuota(organizationId);
+    if (!quota.allowed) {
+      return { error: quota.reason };
+    }
+
     await sendInngestEvent({
       name: "content/pipeline.requested",
       data: { organizationId, contentConfigId: cfg.id },
@@ -262,7 +288,9 @@ export async function approveGeneratedContent(formData: FormData) {
     data: { status: approved, approvedAt: new Date(), approvedBy: userId },
   });
 
-  if (cfg?.autoPost && !cfg.requireApproval) {
+  // Approving is the human gate: when autoPost is on, an approved piece should
+  // publish regardless of requireApproval (the approval itself just happened).
+  if (cfg?.autoPost) {
     await sendInngestEvent({
       name: "content/publish.requested",
       data: { organizationId, generatedContentId: id },
@@ -350,6 +378,11 @@ export async function inviteMemberAction(formData: FormData) {
 
   await assertOrgRole(userId, organizationId, ["OWNER", "ADMIN"]);
 
+  const memberQuota = await checkMembersQuota(organizationId);
+  if (!memberQuota.allowed) {
+    throw new Error(memberQuota.reason);
+  }
+
   const target = await prisma.userProfile.findUnique({ where: { email } });
   if (!target) {
     throw new Error("El usuario debe existir en la app (Perfil) antes de invitarlo.");
@@ -401,6 +434,55 @@ export async function retryJobAction(formData: FormData) {
   });
 
   revalidatePath("/dashboard/jobs");
+}
+
+const validPlans = ["FREE", "STARTER", "PRO", "ENTERPRISE"] as const;
+
+/** Platform-admin manual plan switch (Stripe checkout not wired yet). */
+export async function adminSetOrganizationPlan(formData: FormData) {
+  const { userId, user } = await requireSession();
+  const email = user.emailAddresses[0]?.emailAddress;
+  if (!isPlatformAdminEmail(email)) throw new Error("No autorizado");
+
+  const organizationId = String(formData.get("organizationId") ?? "").trim();
+  const plan = String(formData.get("plan") ?? "").trim() as (typeof validPlans)[number];
+  const bonusCreditsRaw = String(formData.get("bonusCredits") ?? "").trim();
+
+  if (!organizationId) throw new Error("organizationId requerido");
+  if (!validPlans.includes(plan)) throw new Error("Plan inválido");
+
+  const bonusCredits =
+    bonusCreditsRaw === "" ? undefined : Math.max(0, Math.floor(Number(bonusCreditsRaw)));
+  if (bonusCredits !== undefined && !Number.isFinite(bonusCredits)) {
+    throw new Error("Créditos extra inválidos");
+  }
+
+  const before = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { plan: true, bonusCredits: true },
+  });
+  if (!before) throw new Error("Organización no encontrada");
+
+  await prisma.organization.update({
+    where: { id: organizationId },
+    data: { plan, ...(bonusCredits !== undefined ? { bonusCredits } : {}) },
+  });
+
+  await writeAuditLog({
+    organizationId,
+    actorUserId: userId,
+    action: "billing.plan_changed",
+    resourceType: "Organization",
+    resourceId: organizationId,
+    metadata: {
+      fromPlan: before.plan,
+      toPlan: plan,
+      bonusCredits: bonusCredits ?? before.bonusCredits,
+    },
+  });
+
+  revalidatePath("/dashboard/admin");
+  revalidatePath("/dashboard/billing");
 }
 
 export async function adminRetryWebhookEvent(formData: FormData) {

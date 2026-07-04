@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { defaultTextModel } from "@/lib/ai/models";
+import { modelForProvider } from "@/lib/ai/models";
 
 import type { SkillDefinition } from "../types";
 
@@ -23,7 +23,7 @@ export const hookGeneratorSkill: SkillDefinition = {
   outputSchema: HookGeneratorOutputSchema,
   async execute(inputUnknown, ctx) {
     const input = HookGeneratorInputSchema.parse(inputUnknown);
-    const model = defaultTextModel(ctx.ai.providerId);
+    const model = modelForProvider(ctx.ai);
 
     return ctx.ai.generateJSON({
       model,

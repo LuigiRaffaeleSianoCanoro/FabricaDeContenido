@@ -34,6 +34,8 @@ import {
 type Props = {
   initialStep: number;
   initialOrgId: string | null;
+  /** True when the org's plan includes the platform AI (BYOK is optional). */
+  platformAiAvailable?: boolean;
 };
 
 const initial: OnboardingActionState = {};
@@ -50,7 +52,7 @@ const inputClass =
 
 const fieldLabel = "mb-1.5 block text-sm font-medium text-white/80";
 
-export function OnboardingWizard({ initialStep, initialOrgId }: Props) {
+export function OnboardingWizard({ initialStep, initialOrgId, platformAiAvailable = false }: Props) {
   const [step, setStep] = useState(initialStep);
   const [orgId, setOrgId] = useState<string | null>(initialOrgId);
   const [provider, setProvider] = useState<string>("OPENAI");
@@ -161,6 +163,22 @@ export function OnboardingWizard({ initialStep, initialOrgId }: Props) {
             title="Conectá tu IA"
             subtitle="Elegí tu proveedor y traé tu propia API key. Se guarda cifrada (AES-256)."
           >
+            {platformAiAvailable && (
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary/10 p-4">
+                <p className="text-sm text-white/80">
+                  Tu plan incluye la <strong>IA de la plataforma</strong>: podés saltar este paso y
+                  generar contenido con nuestros créditos, sin traer tu key.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setStep(3)}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-bold text-primary-foreground transition hover:bg-primary/90"
+                >
+                  Usar IA de la plataforma
+                  <ArrowRight className="size-3.5" />
+                </button>
+              </div>
+            )}
             <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
               {AI_PROVIDER_ORDER.map((id) => {
                 const g = AI_PROVIDER_GUIDES[id];
@@ -189,18 +207,44 @@ export function OnboardingWizard({ initialStep, initialOrgId }: Props) {
               <input type="hidden" name="organizationId" value={effectiveOrgId} />
               <input type="hidden" name="provider" value={provider} />
               {provider === "CUSTOM" && (
-                <div>
-                  <label htmlFor="customLabel" className={fieldLabel}>
-                    Nombre del servicio
-                  </label>
-                  <input
-                    id="customLabel"
-                    name="customLabel"
-                    required
-                    placeholder="Cursor, Mistral, DeepSeek…"
-                    className={inputClass}
-                  />
-                </div>
+                <>
+                  <div>
+                    <label htmlFor="customLabel" className={fieldLabel}>
+                      Nombre del servicio
+                    </label>
+                    <input
+                      id="customLabel"
+                      name="customLabel"
+                      required
+                      placeholder="Cerebras, Fireworks, mi proxy…"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="customBaseUrl" className={fieldLabel}>
+                      URL base (compatible con OpenAI)
+                    </label>
+                    <input
+                      id="customBaseUrl"
+                      name="customBaseUrl"
+                      required
+                      type="url"
+                      placeholder="https://api.miproveedor.com/v1"
+                      className={cn(inputClass, "font-mono")}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="customModel" className={fieldLabel}>
+                      Modelo por defecto <span className="font-normal text-white/40">(opcional)</span>
+                    </label>
+                    <input
+                      id="customModel"
+                      name="customModel"
+                      placeholder="llama-3.3-70b"
+                      className={cn(inputClass, "font-mono")}
+                    />
+                  </div>
+                </>
               )}
               <div>
                 <label htmlFor="apiKey" className={fieldLabel}>

@@ -9,6 +9,7 @@ import {
   Repeat,
   Briefcase,
   Calendar,
+  CreditCard,
   FileText,
   Settings,
   Shield,
@@ -30,6 +31,7 @@ const baseNavItems = [
   { href: "/dashboard/jobs", label: "Trabajos", icon: Briefcase },
   { href: "/dashboard/calendar", label: "Calendario", icon: Calendar },
   { href: "/dashboard/content", label: "Contenido", icon: FileText },
+  { href: "/dashboard/billing", label: "Facturación", icon: CreditCard },
   { href: "/dashboard/settings", label: "Ajustes", icon: Settings },
 ] as const;
 

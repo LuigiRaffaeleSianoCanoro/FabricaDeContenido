@@ -1,4 +1,16 @@
-export type AIProviderId = "openai" | "anthropic" | "gemini" | "openrouter" | "minimax";
+export type AIProviderId =
+  | "openai"
+  | "anthropic"
+  | "gemini"
+  | "openrouter"
+  | "minimax"
+  | "groq"
+  | "mistral"
+  | "deepseek"
+  | "xai"
+  | "together"
+  /** Any OpenAI-compatible endpoint the tenant configures (requires baseUrl). */
+  | "custom";
 
 export type TextGenerationParams = {
   model: string;
@@ -29,6 +41,8 @@ export type JSONGenerationParams<T> = TextGenerationParams & {
 export interface AIProvider {
   readonly providerId: AIProviderId;
   readonly providerName: string;
+  /** Overrides the catalog default model (e.g. CUSTOM keys or platform AI). */
+  readonly defaultModel?: string;
 
   generateText(params: TextGenerationParams): Promise<TextGenerationResult>;
 

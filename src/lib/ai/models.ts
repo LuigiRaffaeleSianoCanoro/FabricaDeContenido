@@ -16,8 +16,26 @@ export const DEFAULT_TEXT_MODELS: Record<AIProviderId, string> = {
   gemini: "gemini-2.0-flash",
   openrouter: "openai/gpt-4o-mini",
   minimax: "MiniMax-M2.5",
+  groq: "llama-3.3-70b-versatile",
+  mistral: "mistral-small-latest",
+  deepseek: "deepseek-chat",
+  xai: "grok-4-fast",
+  // CUSTOM keys should set their own model via metadata; this is a last-resort fallback.
+  together: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+  custom: "gpt-4o-mini",
 };
 
 export function defaultTextModel(provider: AIProviderId): string {
   return DEFAULT_TEXT_MODELS[provider] ?? DEFAULT_TEXT_MODELS.openai;
+}
+
+/**
+ * Model to use for a resolved provider instance: an explicit per-instance
+ * override (CUSTOM keys / platform AI) wins over the catalog default.
+ */
+export function modelForProvider(ai: {
+  providerId: AIProviderId;
+  defaultModel?: string;
+}): string {
+  return ai.defaultModel ?? defaultTextModel(ai.providerId);
 }

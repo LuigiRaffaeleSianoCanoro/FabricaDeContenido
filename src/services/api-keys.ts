@@ -7,7 +7,7 @@ import { decryptSecret } from "@/lib/encryption/cipher";
 import { prisma } from "@/lib/db/prisma";
 import type { ApiKeyProvider } from "@prisma/client";
 
-function mapProvider(p: ApiKeyProvider): AIProviderId {
+export function mapProvider(p: ApiKeyProvider): AIProviderId {
   switch (p) {
     case "OPENAI":
       return "openai";
@@ -19,9 +19,34 @@ function mapProvider(p: ApiKeyProvider): AIProviderId {
       return "openrouter";
     case "MINIMAX":
       return "minimax";
+    case "GROQ":
+      return "groq";
+    case "MISTRAL":
+      return "mistral";
+    case "DEEPSEEK":
+      return "deepseek";
+    case "XAI":
+      return "xai";
+    case "TOGETHER":
+      return "together";
+    case "CUSTOM":
+      return "custom";
     default:
       throw new Error(`Provider ${p} is not mapped to an AI adapter`);
   }
+}
+
+type ApiKeyMetadata = { baseUrl?: string; model?: string };
+
+function parseKeyMetadata(metadata: unknown): ApiKeyMetadata {
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
+    const m = metadata as Record<string, unknown>;
+    return {
+      baseUrl: typeof m.baseUrl === "string" && m.baseUrl.length > 0 ? m.baseUrl : undefined,
+      model: typeof m.model === "string" && m.model.length > 0 ? m.model : undefined,
+    };
+  }
+  return {};
 }
 
 export async function getActiveAiProviderForOrg(
@@ -45,7 +70,12 @@ export async function getActiveAiProviderForOrg(
     env.ENCRYPTION_MASTER_KEY,
   );
 
-  return createAIProvider(mapProvider(provider), secret);
+  const meta = parseKeyMetadata(row.metadata);
+  return createAIProvider(mapProvider(provider), secret, {
+    baseUrl: meta.baseUrl,
+    defaultModel: meta.model,
+    displayName: row.label ?? undefined,
+  });
 }
 
 export async function touchApiKeyUsed(id: string) {
@@ -55,20 +85,37 @@ export async function touchApiKeyUsed(id: string) {
   });
 }
 
-const AI_PROVIDERS: ApiKeyProvider[] = [
+export const AI_KEY_PROVIDERS: ApiKeyProvider[] = [
   "OPENAI",
   "ANTHROPIC",
   "GEMINI",
   "OPENROUTER",
   "MINIMAX",
+  "GROQ",
+  "MISTRAL",
+  "DEEPSEEK",
+  "XAI",
+  "TOGETHER",
+  "CUSTOM",
 ];
 
+const AI_PROVIDERS = AI_KEY_PROVIDERS;
+
 export async function getFirstActiveAiKeyForOrg(organizationId: string) {
+  const rows = await prisma.encryptedApiKey.findMany({
+    where: {
+      organizationId,
+      provider: { in: AI_PROVIDERS },
+      isActive: true,
+      revokedAt: null,
+    },
+  });
   for (const provider of AI_PROVIDERS) {
-    const row = await prisma.encryptedApiKey.findFirst({
-      where: { organizationId, provider, isActive: true, revokedAt: null },
-    });
-    if (row) return { row, provider };
+    const row = rows.find((r) => r.provider === provider);
+    if (!row) continue;
+    // Legacy CUSTOM keys saved before base URLs existed can't generate content.
+    if (provider === "CUSTOM" && !parseKeyMetadata(row.metadata).baseUrl) continue;
+    return { row, provider };
   }
   return null;
 }

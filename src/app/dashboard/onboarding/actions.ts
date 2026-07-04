@@ -125,15 +125,37 @@ export async function onboardingSaveAiKey(
   const provider = String(formData.get("provider") ?? "OPENAI") as ApiKeyProvider;
   const key = String(formData.get("apiKey") ?? "").trim();
   const customLabel = String(formData.get("customLabel") ?? "").trim();
+  const customBaseUrl = String(formData.get("customBaseUrl") ?? "").trim();
+  const customModel = String(formData.get("customModel") ?? "").trim();
   if (!organizationId || !key) return { error: "Faltan datos." };
 
-  const allowed = ["OPENAI", "ANTHROPIC", "GEMINI", "OPENROUTER", "MINIMAX", "CUSTOM"] as const;
+  const allowed = [
+    "OPENAI",
+    "ANTHROPIC",
+    "GEMINI",
+    "OPENROUTER",
+    "MINIMAX",
+    "GROQ",
+    "MISTRAL",
+    "DEEPSEEK",
+    "XAI",
+    "TOGETHER",
+    "CUSTOM",
+  ] as const;
   if (!allowed.includes(provider as (typeof allowed)[number])) {
     return { error: "Proveedor no válido." };
   }
 
-  if (provider === "CUSTOM" && customLabel.length < 2) {
-    return { error: "Indicá el nombre del servicio (ej: Cursor, Mistral)." };
+  if (provider === "CUSTOM") {
+    if (customLabel.length < 2) {
+      return { error: "Indicá el nombre del servicio (ej: Cerebras, Fireworks)." };
+    }
+    if (!/^https?:\/\//.test(customBaseUrl)) {
+      return {
+        error:
+          "Indicá la URL base del endpoint compatible con OpenAI (ej: https://api.miproveedor.com/v1).",
+      };
+    }
   }
 
   try {
@@ -144,6 +166,10 @@ export async function onboardingSaveAiKey(
     const fp = fingerprintSecret(key);
     const label =
       provider === "CUSTOM" ? customLabel : `${provider} key`;
+    const metadata =
+      provider === "CUSTOM"
+        ? { baseUrl: customBaseUrl, ...(customModel ? { model: customModel } : {}) }
+        : {};
 
     await prisma.encryptedApiKey.upsert({
       where: {
@@ -157,6 +183,7 @@ export async function onboardingSaveAiKey(
         iv: enc.iv,
         authTag: enc.authTag,
         keyFingerprint: fp,
+        metadata,
       },
       update: {
         label,
@@ -164,6 +191,7 @@ export async function onboardingSaveAiKey(
         iv: enc.iv,
         authTag: enc.authTag,
         keyFingerprint: fp,
+        metadata,
         isActive: true,
         revokedAt: null,
         lastRotatedAt: new Date(),

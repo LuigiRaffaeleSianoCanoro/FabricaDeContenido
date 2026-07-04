@@ -3,8 +3,11 @@ import Link from "next/link";
 
 import { AuroraBackdrop } from "@/components/landing/aurora-backdrop";
 import { DashboardSignOut } from "@/components/dashboard/dashboard-sign-out";
+import { getActiveOrganizationForUser } from "@/lib/auth/active-org";
 import { getOnboardingStatus } from "@/lib/auth/onboarding-status";
 import { requireSession } from "@/lib/auth/require-session";
+import { getPlan } from "@/lib/billing/plans";
+import { isPlatformAiConfigured } from "@/services/ai-resolver";
 
 import { OnboardingWizard } from "./onboarding-wizard";
 
@@ -17,6 +20,11 @@ export default async function OnboardingPage() {
   if (status.complete) {
     redirect("/dashboard");
   }
+
+  const org = await getActiveOrganizationForUser(userId);
+  const platformAiAvailable = Boolean(
+    org && getPlan(org.plan).platformAiIncluded && isPlatformAiConfigured(),
+  );
 
   return (
     <div className="relative isolate flex min-h-[100svh] w-full flex-col overflow-x-hidden bg-[#08060e] text-white">
@@ -47,7 +55,11 @@ export default async function OnboardingPage() {
           </p>
         </div>
 
-        <OnboardingWizard initialStep={status.step} initialOrgId={status.organizationId} />
+        <OnboardingWizard
+          initialStep={status.step}
+          initialOrgId={status.organizationId}
+          platformAiAvailable={platformAiAvailable}
+        />
       </main>
     </div>
   );

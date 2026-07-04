@@ -1,11 +1,12 @@
-import { Shield, Building2, Webhook } from "lucide-react";
+import { Shield, Building2, Webhook, CreditCard } from "lucide-react";
 
-import { adminRetryWebhookEvent } from "@/app/dashboard/actions";
+import { adminRetryWebhookEvent, adminSetOrganizationPlan } from "@/app/dashboard/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { isPlatformAdminEmail } from "@/lib/auth/admin";
 import { requireOnboardingComplete } from "@/lib/auth/onboarding-status";
 import { requireSession } from "@/lib/auth/require-session";
+import { PLAN_ORDER } from "@/lib/billing/plans";
 import { prisma } from "@/lib/db/prisma";
 
 export default async function AdminPage() {
@@ -55,6 +56,13 @@ export default async function AdminPage() {
     include: { endpoint: true },
   });
 
+  const upgradeRequests = await prisma.auditLog.findMany({
+    where: { action: "billing.upgrade_requested" },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    include: { organization: { select: { name: true, plan: true } } },
+  });
+
   return (
     <div className="relative flex h-full flex-col p-6 lg:p-8">
       <div className="pointer-events-none absolute -right-40 -top-40 size-80 rounded-full bg-primary/10 blur-3xl" />
@@ -80,14 +88,15 @@ export default async function AdminPage() {
             <Badge variant="secondary">{orgs.length}</Badge>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
+            <table className="w-full min-w-[860px] text-left text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground">
                   <th className="pb-2 pr-4">Nombre</th>
                   <th className="pb-2 pr-4">Slug</th>
                   <th className="pb-2 pr-4">Miembros</th>
                   <th className="pb-2 pr-4">Contenidos</th>
-                  <th className="pb-2">Jobs</th>
+                  <th className="pb-2 pr-4">Jobs</th>
+                  <th className="pb-2">Plan / créditos extra</th>
                 </tr>
               </thead>
               <tbody>
@@ -97,12 +106,81 @@ export default async function AdminPage() {
                     <td className="py-2 pr-4 text-muted-foreground">{o.slug}</td>
                     <td className="py-2 pr-4">{o._count.members}</td>
                     <td className="py-2 pr-4">{contentByOrg.get(o.id) ?? 0}</td>
-                    <td className="py-2">{o._count.contentJobs}</td>
+                    <td className="py-2 pr-4">{o._count.contentJobs}</td>
+                    <td className="py-2">
+                      <form
+                        action={adminSetOrganizationPlan}
+                        className="flex flex-wrap items-center gap-2"
+                      >
+                        <input type="hidden" name="organizationId" value={o.id} />
+                        <select
+                          name="plan"
+                          defaultValue={o.plan}
+                          className="h-8 rounded-md border border-input bg-background/60 px-2 text-xs"
+                        >
+                          {PLAN_ORDER.map((p) => (
+                            <option key={p} value={p}>
+                              {p}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          name="bonusCredits"
+                          type="number"
+                          min={0}
+                          defaultValue={o.bonusCredits}
+                          title="Créditos extra (top-up)"
+                          className="h-8 w-20 rounded-md border border-input bg-background/60 px-2 text-xs"
+                        />
+                        <Button type="submit" size="sm" variant="secondary">
+                          Guardar
+                        </Button>
+                      </form>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        </div>
+
+        <div className="glass animate-scale-in rounded-2xl p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <CreditCard className="size-5 text-primary" />
+            <h2 className="font-semibold">Solicitudes de upgrade</h2>
+            <Badge variant="secondary">{upgradeRequests.length}</Badge>
+          </div>
+          {upgradeRequests.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Sin solicitudes pendientes.</p>
+          ) : (
+            <ul className="space-y-2">
+              {upgradeRequests.map((r) => {
+                const meta = (r.metadata ?? {}) as {
+                  fromPlan?: string;
+                  targetPlan?: string;
+                  requesterEmail?: string | null;
+                };
+                return (
+                  <li
+                    key={r.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/50 bg-card/50 px-4 py-3 text-sm"
+                  >
+                    <div>
+                      <span className="font-medium">{r.organization.name}</span>
+                      <span className="ml-2 text-muted-foreground">
+                        {meta.fromPlan ?? "?"} → {meta.targetPlan ?? "?"}
+                        {meta.requesterEmail ? ` · ${meta.requesterEmail}` : ""}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Badge variant="outline">actual: {r.organization.plan}</Badge>
+                      {new Date(r.createdAt).toLocaleString("es-ES")}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
 
         <div className="glass animate-scale-in rounded-2xl p-6">

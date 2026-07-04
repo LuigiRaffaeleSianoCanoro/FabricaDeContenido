@@ -24,6 +24,12 @@ const PROVIDER_LABELS: Record<AIProviderId, string> = {
   gemini: "Google Gemini",
   openrouter: "OpenRouter",
   minimax: "MiniMax",
+  groq: "Groq",
+  mistral: "Mistral",
+  deepseek: "DeepSeek",
+  xai: "xAI (Grok)",
+  together: "Together AI",
+  custom: "tu proveedor personalizado",
 };
 
 export function providerLabel(provider: AIProviderId): string {
