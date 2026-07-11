@@ -48,6 +48,10 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
   --color-orange-glow: var(--orange-glow);
+  /* Motion tokens — strong custom curves (built-in CSS easings are too weak) */
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* Nike Shoebox Orange Theme - Bright and Fluorescent */
@@ -140,42 +144,57 @@
   50% { transform: translateY(-10px); }
 }
 
-@keyframes pulse-glow {
-  0%, 100% { 
-    box-shadow: 0 0 20px var(--orange-glow), 0 0 40px var(--orange-glow);
-  }
-  50% { 
-    box-shadow: 0 0 30px var(--orange-glow), 0 0 60px var(--orange-glow);
-  }
-}
-
 @keyframes gradient-shift {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
 }
 
+/* Subtle travel: entrances should suggest direction, not cross the screen. */
 @keyframes slide-in-left {
-  from { transform: translateX(-100%); opacity: 0; }
+  from { transform: translateX(-16px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
 
 @keyframes slide-in-right {
-  from { transform: translateX(100%); opacity: 0; }
+  from { transform: translateX(16px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
 
 @keyframes scale-in {
-  from { transform: scale(0.9); opacity: 0; }
+  from { transform: scale(0.97); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
 
-.animate-float {
-  animation: float 3s ease-in-out infinite;
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
+.animate-float {
+  animation: float 3s var(--ease-in-out-strong) infinite;
+}
+
+/*
+ * Glow pulse on a pseudo-element opacity (GPU-composited) instead of
+ * animating box-shadow directly, which forces repaints every frame.
+ */
 .animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+  position: relative;
+}
+
+.animate-pulse-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 25px var(--orange-glow), 0 0 50px var(--orange-glow);
+  animation: pulse-glow-opacity 2.4s var(--ease-in-out-strong) infinite;
+}
+
+@keyframes pulse-glow-opacity {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
 }
 
 .animate-gradient {
@@ -184,15 +203,15 @@
 }
 
 .animate-slide-in-left {
-  animation: slide-in-left 0.5s ease-out forwards;
+  animation: slide-in-left 300ms var(--ease-out-strong) both;
 }
 
 .animate-slide-in-right {
-  animation: slide-in-right 0.5s ease-out forwards;
+  animation: slide-in-right 300ms var(--ease-out-strong) both;
 }
 
 .animate-scale-in {
-  animation: scale-in 0.3s ease-out forwards;
+  animation: scale-in 200ms var(--ease-out-strong) both;
 }
 
 /* Glass morphism effects */
@@ -262,8 +281,14 @@
   border: 1px solid oklch(1 0 0 / 10%);
 }
 
-.glass-panel:hover {
-  border-color: oklch(0.75 0.2 50 / 45%);
+@media (hover: hover) and (pointer: fine) {
+  .glass-panel {
+    transition: border-color 200ms var(--ease-out-strong);
+  }
+
+  .glass-panel:hover {
+    border-color: oklch(0.75 0.2 50 / 45%);
+  }
 }
 
 /* Subtle animated conic glow behind hero elements. */
@@ -305,8 +330,10 @@
   transform: translateX(-150%);
 }
 
-.shimmer:hover::after {
-  animation: shimmer 1.1s ease;
+@media (hover: hover) and (pointer: fine) {
+  .shimmer:hover::after {
+    animation: shimmer 1.1s ease;
+  }
 }
 
 /* Marquee for the logo / proof strip. */
@@ -414,9 +441,19 @@
   .animate-marquee,
   .animate-bob,
   .animate-gradient,
+  .animate-float,
+  .animate-pulse-glow::before,
+  .shimmer:hover::after,
   .aurora-base,
   .gradient-text-animated,
   .gradient-border::before {
     animation: none !important;
+  }
+
+  /* Keep a gentle fade for entrances, drop the movement. */
+  .animate-scale-in,
+  .animate-slide-in-left,
+  .animate-slide-in-right {
+    animation-name: fade-in !important;
   }
 }

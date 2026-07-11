@@ -6,6 +6,7 @@ import { Menu, Sparkles } from "lucide-react";
 
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import type { OrgWithRole } from "@/lib/auth/active-org";
+import { cn } from "@/lib/utils";
 
 export function DashboardShell({
   email,
@@ -34,14 +35,15 @@ export function DashboardShell({
 
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden bg-background">
-      {/* Backdrop (mobile only) */}
-      {open && (
-        <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
-          aria-hidden
-          onClick={() => setOpen(false)}
-        />
-      )}
+      {/* Backdrop (mobile only) — fades in sync with the sidebar slide. */}
+      <div
+        className={cn(
+          "fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300 lg:hidden",
+          open ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+        aria-hidden
+        onClick={() => setOpen(false)}
+      />
 
       <AppSidebar
         email={email}

@@ -32,7 +32,7 @@ function UsageBar({
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-muted">
         <div
-          className={`h-full rounded-full transition-all ${over ? "bg-destructive" : "bg-primary"}`}
+          className={`h-full rounded-full transition-[width] duration-500 ease-out-strong ${over ? "bg-destructive" : "bg-primary"}`}
           style={{ width: limit === null ? "4%" : `${pct}%` }}
         />
       </div>
@@ -118,7 +118,7 @@ export default async function BillingPage() {
 
         {/* Plan catalog */}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {PLAN_ORDER.map((planId) => {
+          {PLAN_ORDER.map((planId, index) => {
             const p = PLANS[planId];
             const isCurrent = p.id === current.id;
             return (
@@ -127,6 +127,7 @@ export default async function BillingPage() {
                 className={`glass animate-scale-in flex flex-col rounded-2xl p-5 ${
                   isCurrent ? "ring-2 ring-primary" : ""
                 }`}
+                style={{ animationDelay: `${index * 50}ms` }}
               >
                 <div className="mb-1 flex items-center justify-between">
                   <h3 className="font-semibold">{p.label}</h3>

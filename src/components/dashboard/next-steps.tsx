@@ -114,7 +114,7 @@ function NextStepRow({ step }: { step: NextStepDefinition }) {
       <Link
         href={href}
         className={cn(
-          "group flex items-center gap-3 rounded-xl border border-border/50 bg-card/50 p-3 transition-all hover:border-primary/40 hover:bg-primary/5",
+          "group flex items-center gap-3 rounded-xl border border-border/50 bg-card/50 p-3 transition-colors hover:border-primary/40 hover:bg-primary/5",
           step.done && "opacity-80",
         )}
       >
