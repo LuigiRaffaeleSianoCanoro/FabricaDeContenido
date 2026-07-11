@@ -289,7 +289,7 @@ export default function HomePage() {
           <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {features.map((feature, i) => (
               <Reveal from="scale" delay={(i % 3) * 90} key={feature.title}>
-                <div className="glass-panel group h-full rounded-3xl p-6 transition-all duration-300 hover:-translate-y-1.5">
+                <div className="glass-panel group h-full rounded-3xl p-6 transition-transform duration-300 ease-out-strong hover:-translate-y-1.5">
                   <span className="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/30 to-amber-400/10 text-primary ring-1 ring-white/10 transition-transform group-hover:scale-110">
                     <feature.icon className="size-5" />
                   </span>

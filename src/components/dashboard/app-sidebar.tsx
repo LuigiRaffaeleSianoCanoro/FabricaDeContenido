@@ -63,7 +63,7 @@ export function AppSidebar({
   return (
     <aside
       className={cn(
-        "glass-dark fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-72 max-w-[85vw] shrink-0 flex-col overflow-hidden transition-transform duration-300 ease-out",
+        "glass-dark fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-72 max-w-[85vw] shrink-0 flex-col overflow-hidden transition-transform duration-300 ease-drawer",
         "lg:static lg:z-auto lg:h-full lg:w-64 lg:max-w-none lg:translate-x-0 lg:transition-none",
         open ? "translate-x-0" : "-translate-x-full",
       )}
@@ -115,7 +115,7 @@ export function AppSidebar({
               href={item.href}
               onClick={onClose}
               className={cn(
-                "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-200",
                 "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                 isActive && "bg-primary/10 text-primary"
@@ -126,7 +126,7 @@ export function AppSidebar({
               )}
               <item.icon
                 className={cn(
-                  "size-4.5 shrink-0 transition-all duration-200",
+                  "size-4.5 shrink-0 transition-colors duration-200",
                   isActive
                     ? "text-primary"
                     : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground"

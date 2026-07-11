@@ -132,7 +132,7 @@ export default async function DashboardHomePage() {
         {stats.map((stat, index) => (
           <div
             key={stat.label}
-            className="glass group animate-scale-in rounded-2xl p-4 transition-all hover:scale-[1.02] hover:bg-primary/5"
+            className="glass group animate-scale-in rounded-2xl p-4 transition duration-200 ease-out-strong hover:scale-[1.02] hover:bg-primary/5"
             style={{ animationDelay: `${index * 0.05}s` }}
           >
             <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
@@ -173,8 +173,8 @@ export default async function DashboardHomePage() {
             <Link
               key={action.href}
               href={action.href}
-              className="glass group animate-slide-in-left overflow-hidden rounded-2xl p-5 transition-all hover:scale-[1.02] hover:bg-primary/5"
-              style={{ animationDelay: `${index * 0.1}s` }}
+              className="glass group animate-slide-in-left overflow-hidden rounded-2xl p-5 transition duration-200 ease-out-strong hover:scale-[1.02] hover:bg-primary/5"
+              style={{ animationDelay: `${index * 50}ms` }}
             >
               <div
                 className={`absolute inset-0 bg-gradient-to-br ${action.color} opacity-0 transition-opacity group-hover:opacity-100`}
@@ -183,7 +183,7 @@ export default async function DashboardHomePage() {
                 <div className="flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                   <action.icon className="size-6" />
                 </div>
-                <ArrowRight className="size-5 text-muted-foreground transition-all group-hover:translate-x-1 group-hover:text-primary" />
+                <ArrowRight className="size-5 text-muted-foreground transition group-hover:translate-x-1 group-hover:text-primary" />
               </div>
               <div className="relative z-10 mt-4">
                 <h3 className="font-semibold">{action.title}</h3>

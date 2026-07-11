@@ -89,8 +89,8 @@ export function OnboardingWizard({ initialStep, initialOrgId, platformAiAvailabl
         <div className="relative mx-1 mb-3 flex items-center justify-between">
           <div className="absolute left-0 right-0 top-1/2 h-0.5 -translate-y-1/2 bg-white/10" />
           <div
-            className="absolute left-0 top-1/2 h-0.5 -translate-y-1/2 bg-primary transition-all duration-500 ease-out"
-            style={{ width: `${pct}%` }}
+            className="absolute left-0 right-0 top-1/2 h-0.5 origin-left -translate-y-1/2 bg-primary transition-transform duration-500 ease-out-strong"
+            style={{ transform: `scaleX(${pct / 100})` }}
           />
           {STEPS.map((s) => {
             const done = step > s.id;
@@ -99,7 +99,7 @@ export function OnboardingWizard({ initialStep, initialOrgId, platformAiAvailabl
               <div
                 key={s.id}
                 className={cn(
-                  "relative z-10 flex size-9 items-center justify-center rounded-full border transition-all duration-300",
+                  "relative z-10 flex size-9 items-center justify-center rounded-full border transition duration-300",
                   done
                     ? "border-primary bg-primary text-primary-foreground"
                     : active
@@ -189,7 +189,7 @@ export function OnboardingWizard({ initialStep, initialOrgId, platformAiAvailabl
                     key={id}
                     onClick={() => setProvider(id)}
                     className={cn(
-                      "rounded-xl border px-2 py-2.5 text-xs font-medium transition-all",
+                      "rounded-xl border px-2 py-2.5 text-xs font-medium transition-colors",
                       selected
                         ? "border-primary bg-primary/15 text-white"
                         : "border-white/12 bg-white/5 text-white/65 hover:border-white/25 hover:text-white",
