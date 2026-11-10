@@ -41,7 +41,7 @@ Leyenda: **Full** = nativo y maduro | **Partial** = existe con limitaciones | **
 | 11. Approval workflow | **Full** | Full | Partial | None | Partial | Full | Partial | Partial | Full |
 | 12. Analytics / reporting | **Partial** | Full | Full | Full | Partial | Full | Full | Full | **Full** |
 | 13. Partner API / agent skills | **None** (roadmap Q4) | **Full** | Partial | **Full** (Skill.md) | Partial | Partial | Full (API) | Partial | Partial |
-| 14. Pricing (entry) | TBD ($39 propuesto) | $29/mo | ~$80+/mo stack | $19/mo | $29/mo | ~$30/mo | $25/mo | ~$29/mo | $20/mo |
+| 14. Pricing (entry) | $39/mo propuesto (sin precio de entrada fijado en producto a nov 2026) | $29/mo | ~$80+/mo stack | $19/mo | $29/mo | ~$30/mo | $25/mo | ~$29/mo | $20/mo |
 
 ### Fuentes
 
